@@ -219,7 +219,6 @@ function App() {
   };
 
   const handleDateCellClick = (clickedDate: string, day: number | null, dateObj?: Date) => {
-    console.log('clickedDate', clickedDate);
     // clickedDate가 빈 문자열이면 무시
     if (!clickedDate) {
       return;
@@ -248,7 +247,6 @@ function App() {
       return; // 일정이 있는 셀은 클릭 무시
     }
 
-    console.log('clickedDate', clickedDate);
     // 일반 모드: 날짜 설정 (FR1, FR3)
     setDate(clickedDate);
     // 시간 필드는 빈 값 유지 (FR3) - resetForm을 호출하지 않음
@@ -409,7 +407,9 @@ function App() {
                                 {/* ! TEST CASE */}
                                 {isRepeating && (
                                   <Tooltip
-                                    title={`${event.repeat.interval}${getRepeatTypeLabel(event.repeat.type)}마다 반복${
+                                    title={`${event.repeat.interval}${getRepeatTypeLabel(
+                                      event.repeat.type
+                                    )}마다 반복${
                                       event.repeat.endDate ? ` (종료: ${event.repeat.endDate})` : ''
                                     }`}
                                   >
@@ -531,7 +531,9 @@ function App() {
                                     {/* ! TEST CASE */}
                                     {isRepeating && (
                                       <Tooltip
-                                        title={`${event.repeat.interval}${getRepeatTypeLabel(event.repeat.type)}마다 반복${
+                                        title={`${event.repeat.interval}${getRepeatTypeLabel(
+                                          event.repeat.type
+                                        )}마다 반복${
                                           event.repeat.endDate
                                             ? ` (종료: ${event.repeat.endDate})`
                                             : ''
@@ -816,7 +818,9 @@ function App() {
                       {notifiedEvents.includes(event.id) && <Notifications color="error" />}
                       {event.repeat.type !== 'none' && (
                         <Tooltip
-                          title={`${event.repeat.interval}${getRepeatTypeLabel(event.repeat.type)}마다 반복${
+                          title={`${event.repeat.interval}${getRepeatTypeLabel(
+                            event.repeat.type
+                          )}마다 반복${
                             event.repeat.endDate ? ` (종료: ${event.repeat.endDate})` : ''
                           }`}
                         >

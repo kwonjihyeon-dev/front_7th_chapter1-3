@@ -1,6 +1,6 @@
 import CssBaseline from '@mui/material/CssBaseline';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
-import { render, screen, within, act, waitFor } from '@testing-library/react';
+import { render, screen, within, act } from '@testing-library/react';
 import { UserEvent, userEvent } from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { SnackbarProvider } from 'notistack';
@@ -500,6 +500,18 @@ it('월간 뷰 선택 후 해당 주에 반복 일정이 존재한다면 해당 
 });
 
 describe('날짜 클릭으로 일정 생성 기능', () => {
+  beforeEach(() => {
+    server.use(
+      http.get('/api/events', () => {
+        return HttpResponse.json({ events: [] });
+      })
+    );
+  });
+
+  afterEach(() => {
+    server.resetHandlers();
+  });
+
   it('월 뷰에서 빈 날짜 셀을 클릭하면 날짜 필드가 자동 설정된다', async () => {
     const { user } = setup(<App />);
 
@@ -509,11 +521,7 @@ describe('날짜 클릭으로 일정 생성 기능', () => {
     const dateCell = within(monthView).getByText('15').closest('td')!;
     await user.click(dateCell);
 
-    await waitFor(() => {
-      const dateInput = screen.getByLabelText('날짜');
-      expect(dateInput).toHaveValue('2025-10-15');
-    });
-
+    expect(screen.getByLabelText('날짜')).toHaveValue('2025-10-15');
     expect(screen.getByLabelText('시작 시간')).toHaveValue('');
     expect(screen.getByLabelText('종료 시간')).toHaveValue('');
   });
