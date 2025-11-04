@@ -164,6 +164,8 @@ function App() {
   const [pendingRecurringDelete, setPendingRecurringDelete] = useState<Event | null>(null);
   const [recurringEditMode, setRecurringEditMode] = useState<boolean | null>(null); // true = single, false = all
   const [recurringDialogMode, setRecurringDialogMode] = useState<'edit' | 'delete'>('edit');
+  const [isEditCancelDialogOpen, setIsEditCancelDialogOpen] = useState(false);
+  const [pendingClickDate, setPendingClickDate] = useState<string | null>(null);
 
   const { enqueueSnackbar } = useSnackbar();
 
@@ -214,6 +216,59 @@ function App() {
       // Regular event deletion
       deleteEvent(event.id);
     }
+  };
+
+  const handleDateCellClick = (clickedDate: string, day: number | null, dateObj?: Date) => {
+    console.log('clickedDate', clickedDate);
+    // clickedDate가 빈 문자열이면 무시
+    if (!clickedDate) {
+      return;
+    }
+
+    // 편집 모드인 경우 다이얼로그 표시 (FR4) - 일정 존재 여부와 관계없이 표시
+    if (editingEvent) {
+      setPendingClickDate(clickedDate);
+      setIsEditCancelDialogOpen(true);
+      return;
+    }
+
+    // 일정이 있는 셀인지 확인 (FR2) - 편집 모드가 아닐 때만
+    let dayEvents: Event[] = [];
+    if (dateObj) {
+      // 주 뷰: Date 객체를 사용하여 날짜 비교
+      dayEvents = filteredEvents.filter(
+        (event) => new Date(event.date).toDateString() === dateObj.toDateString()
+      );
+    } else if (clickedDate) {
+      // 월 뷰: clickedDate를 사용하여 날짜 비교 (getEventsForDay는 월을 고려하지 않음)
+      dayEvents = filteredEvents.filter((event) => event.date === clickedDate);
+    }
+
+    if (dayEvents.length > 0) {
+      return; // 일정이 있는 셀은 클릭 무시
+    }
+
+    console.log('clickedDate', clickedDate);
+    // 일반 모드: 날짜 설정 (FR1, FR3)
+    setDate(clickedDate);
+    // 시간 필드는 빈 값 유지 (FR3) - resetForm을 호출하지 않음
+  };
+
+  const handleEditCancelConfirm = () => {
+    // 편집 모드 취소 및 새 일정 생성 모드로 전환
+    setEditingEvent(null);
+    resetForm();
+    if (pendingClickDate) {
+      setDate(pendingClickDate);
+    }
+    setIsEditCancelDialogOpen(false);
+    setPendingClickDate(null);
+  };
+
+  const handleEditKeep = () => {
+    // 편집 모드 유지
+    setIsEditCancelDialogOpen(false);
+    setPendingClickDate(null);
   };
 
   const addOrUpdateEvent = async () => {
@@ -308,62 +363,73 @@ function App() {
             </TableHead>
             <TableBody>
               <TableRow>
-                {weekDates.map((date) => (
-                  <TableCell
-                    key={date.toISOString()}
-                    sx={{
-                      height: '120px',
-                      verticalAlign: 'top',
-                      width: '14.28%',
-                      padding: 1,
-                      border: '1px solid #e0e0e0',
-                      overflow: 'hidden',
-                    }}
-                  >
-                    <Typography variant="body2" fontWeight="bold">
-                      {date.getDate()}
-                    </Typography>
-                    {filteredEvents
-                      .filter(
-                        (event) => new Date(event.date).toDateString() === date.toDateString()
-                      )
-                      .map((event) => {
-                        const isNotified = notifiedEvents.includes(event.id);
-                        const isRepeating = event.repeat.type !== 'none';
+                {weekDates.map((date) => {
+                  const dateString = formatDate(date, date.getDate());
+                  const dayEvents = filteredEvents.filter(
+                    (event) => new Date(event.date).toDateString() === date.toDateString()
+                  );
 
-                        return (
-                          <Box
-                            key={event.id}
-                            sx={{
-                              ...eventBoxStyles.common,
-                              ...(isNotified ? eventBoxStyles.notified : eventBoxStyles.normal),
-                            }}
-                          >
-                            <Stack direction="row" spacing={1} alignItems="center">
-                              {isNotified && <Notifications fontSize="small" />}
-                              {/* ! TEST CASE */}
-                              {isRepeating && (
-                                <Tooltip
-                                  title={`${event.repeat.interval}${getRepeatTypeLabel(event.repeat.type)}마다 반복${
-                                    event.repeat.endDate ? ` (종료: ${event.repeat.endDate})` : ''
-                                  }`}
+                  return (
+                    <TableCell
+                      key={date.toISOString()}
+                      onClick={() => handleDateCellClick(dateString, date.getDate(), date)}
+                      sx={{
+                        height: '120px',
+                        verticalAlign: 'top',
+                        width: '14.28%',
+                        padding: 1,
+                        border: '1px solid #e0e0e0',
+                        overflow: 'hidden',
+                        cursor: dayEvents.length === 0 ? 'pointer' : 'default',
+                      }}
+                    >
+                      <Typography variant="body2" fontWeight="bold" sx={{ pointerEvents: 'none' }}>
+                        {date.getDate()}
+                      </Typography>
+                      {filteredEvents
+                        .filter(
+                          (event) => new Date(event.date).toDateString() === date.toDateString()
+                        )
+                        .map((event) => {
+                          const isNotified = notifiedEvents.includes(event.id);
+                          const isRepeating = event.repeat.type !== 'none';
+
+                          return (
+                            <Box
+                              key={event.id}
+                              data-event
+                              onClick={(e) => e.stopPropagation()}
+                              sx={{
+                                ...eventBoxStyles.common,
+                                ...(isNotified ? eventBoxStyles.notified : eventBoxStyles.normal),
+                              }}
+                            >
+                              <Stack direction="row" spacing={1} alignItems="center">
+                                {isNotified && <Notifications fontSize="small" />}
+                                {/* ! TEST CASE */}
+                                {isRepeating && (
+                                  <Tooltip
+                                    title={`${event.repeat.interval}${getRepeatTypeLabel(event.repeat.type)}마다 반복${
+                                      event.repeat.endDate ? ` (종료: ${event.repeat.endDate})` : ''
+                                    }`}
+                                  >
+                                    <Repeat fontSize="small" />
+                                  </Tooltip>
+                                )}
+                                <Typography
+                                  variant="caption"
+                                  noWrap
+                                  sx={{ fontSize: '0.75rem', lineHeight: 1.2 }}
                                 >
-                                  <Repeat fontSize="small" />
-                                </Tooltip>
-                              )}
-                              <Typography
-                                variant="caption"
-                                noWrap
-                                sx={{ fontSize: '0.75rem', lineHeight: 1.2 }}
-                              >
-                                {event.title}
-                              </Typography>
-                            </Stack>
-                          </Box>
-                        );
-                      })}
-                  </TableCell>
-                ))}
+                                  {event.title}
+                                </Typography>
+                              </Stack>
+                            </Box>
+                          );
+                        })}
+                    </TableCell>
+                  );
+                })}
               </TableRow>
             </TableBody>
           </Table>
@@ -396,9 +462,18 @@ function App() {
                     const dateString = day ? formatDate(currentDate, day) : '';
                     const holiday = holidays[dateString];
 
+                    const dayEvents = day ? getEventsForDay(filteredEvents, day) : [];
+
                     return (
                       <TableCell
                         key={dayIndex}
+                        onClick={() => {
+                          if (day && dateString) {
+                            handleDateCellClick(dateString, day);
+                          }
+                        }}
+                        role="button"
+                        tabIndex={day && dateString && dayEvents.length === 0 ? 0 : -1}
                         sx={{
                           height: '120px',
                           verticalAlign: 'top',
@@ -407,15 +482,26 @@ function App() {
                           border: '1px solid #e0e0e0',
                           overflow: 'hidden',
                           position: 'relative',
+                          cursor: day && dayEvents.length === 0 ? 'pointer' : 'default',
                         }}
                       >
                         {day && (
                           <>
-                            <Typography variant="body2" fontWeight="bold">
+                            <Typography
+                              variant="body2"
+                              fontWeight="bold"
+                              onClick={(e) => e.stopPropagation()}
+                              sx={{ pointerEvents: 'none' }}
+                            >
                               {day}
                             </Typography>
                             {holiday && (
-                              <Typography variant="body2" color="error">
+                              <Typography
+                                variant="body2"
+                                color="error"
+                                onClick={(e) => e.stopPropagation()}
+                                sx={{ pointerEvents: 'none' }}
+                              >
                                 {holiday}
                               </Typography>
                             )}
@@ -426,6 +512,8 @@ function App() {
                               return (
                                 <Box
                                   key={event.id}
+                                  data-event
+                                  onClick={(e) => e.stopPropagation()}
                                   sx={{
                                     p: 0.5,
                                     my: 0.5,
@@ -835,6 +923,21 @@ function App() {
         event={recurringDialogMode === 'edit' ? pendingRecurringEdit : pendingRecurringDelete}
         mode={recurringDialogMode}
       />
+
+      <Dialog open={isEditCancelDialogOpen} onClose={handleEditKeep}>
+        <DialogTitle>편집 모드 취소</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            편집 중인 일정이 있습니다. 편집을 취소하고 새 일정을 생성하시겠습니까?
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleEditKeep}>편집 유지</Button>
+          <Button onClick={handleEditCancelConfirm} variant="contained" color="primary">
+            편집 취소
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {notifications.length > 0 && (
         <Stack position="fixed" top={16} right={16} spacing={2} alignItems="flex-end">

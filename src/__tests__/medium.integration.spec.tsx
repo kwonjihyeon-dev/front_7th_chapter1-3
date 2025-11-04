@@ -1,6 +1,6 @@
 import CssBaseline from '@mui/material/CssBaseline';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
-import { render, screen, within, act } from '@testing-library/react';
+import { render, screen, within, act, waitFor } from '@testing-library/react';
 import { UserEvent, userEvent } from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { SnackbarProvider } from 'notistack';
@@ -497,4 +497,130 @@ it('월간 뷰 선택 후 해당 주에 반복 일정이 존재한다면 해당 
 
   const eventList = within(screen.getByTestId('event-list'));
   expect(eventList.getAllByText('새 회의')).toHaveLength(2);
+});
+
+describe('날짜 클릭으로 일정 생성 기능', () => {
+  it('월 뷰에서 빈 날짜 셀을 클릭하면 날짜 필드가 자동 설정된다', async () => {
+    const { user } = setup(<App />);
+
+    await screen.findByText('일정 로딩 완료!');
+
+    const monthView = screen.getByTestId('month-view');
+    const dateCell = within(monthView).getByText('15').closest('td')!;
+    await user.click(dateCell);
+
+    await waitFor(() => {
+      const dateInput = screen.getByLabelText('날짜');
+      expect(dateInput).toHaveValue('2025-10-15');
+    });
+
+    expect(screen.getByLabelText('시작 시간')).toHaveValue('');
+    expect(screen.getByLabelText('종료 시간')).toHaveValue('');
+  });
+
+  it('주 뷰에서 빈 날짜 셀을 클릭하면 날짜 필드가 자동 설정된다', async () => {
+    const { user } = setup(<App />);
+
+    await screen.findByText('일정 로딩 완료!');
+
+    await user.click(within(screen.getByLabelText('뷰 타입 선택')).getByRole('combobox'));
+    await user.click(screen.getByRole('option', { name: 'week-option' }));
+
+    const weekView = screen.getByTestId('week-view');
+    const dateCell = within(weekView).getByText('1').closest('td')!;
+    await user.click(dateCell);
+
+    expect(screen.getByLabelText('날짜')).toHaveValue('2025-10-01');
+    expect(screen.getByLabelText('시작 시간')).toHaveValue('');
+    expect(screen.getByLabelText('종료 시간')).toHaveValue('');
+  });
+
+  it('일정이 있는 날짜 셀을 클릭해도 폼이 변경되지 않는다', async () => {
+    setupMockHandlerCreation();
+
+    const { user } = setup(<App />);
+
+    await saveSchedule(user, {
+      title: '기존 일정',
+      date: '2025-10-15',
+      startTime: '09:00',
+      endTime: '10:00',
+      description: '기존 일정 설명',
+      location: '회의실 A',
+      category: '업무',
+    });
+
+    await screen.findByText('일정 로딩 완료!');
+
+    const monthView = screen.getByTestId('month-view');
+    const dateCell = within(monthView).getByText('15').closest('td')!;
+
+    const beforeDateValue = screen.getByLabelText('날짜').getAttribute('value') || '';
+
+    await user.click(dateCell);
+
+    const afterDateValue = screen.getByLabelText('날짜').getAttribute('value') || '';
+    expect(afterDateValue).toBe(beforeDateValue);
+  });
+
+  it('편집 중 날짜 셀을 클릭하고 편집 취소를 선택하면 편집 모드가 취소된다', async () => {
+    setupMockHandlerUpdating();
+
+    const { user } = setup(<App />);
+
+    await screen.findByText('일정 로딩 완료!');
+
+    const editButtons = await screen.findAllByLabelText('Edit event');
+    await user.click(editButtons[0]);
+
+    expect(screen.getAllByText('일정 수정')[0]).toBeInTheDocument();
+
+    const monthView = screen.getByTestId('month-view');
+    const dateCell = within(monthView).getByText('16').closest('td')!;
+    await user.click(dateCell);
+
+    expect(
+      screen.getByText('편집 중인 일정이 있습니다. 편집을 취소하고 새 일정을 생성하시겠습니까?')
+    ).toBeInTheDocument();
+
+    const cancelButton = screen.getByText('편집 취소');
+    await user.click(cancelButton);
+
+    expect(screen.getAllByText('일정 추가')[0]).toBeInTheDocument();
+    expect(screen.getByLabelText('제목')).toHaveValue('');
+    expect(screen.getByLabelText('날짜')).toHaveValue('2025-10-16');
+    expect(screen.queryByText('편집 중인 일정이 있습니다')).not.toBeInTheDocument();
+  });
+
+  it('편집 중 날짜 셀을 클릭하고 편집 유지를 선택하면 편집 모드가 유지된다', async () => {
+    setupMockHandlerUpdating();
+
+    const { user } = setup(<App />);
+
+    await screen.findByText('일정 로딩 완료!');
+
+    const editButtons = await screen.findAllByLabelText('Edit event');
+    await user.click(editButtons[0]);
+
+    expect(screen.getAllByText('일정 수정')[0]).toBeInTheDocument();
+
+    const originalTitle = screen.getByLabelText('제목').getAttribute('value') || '';
+    const originalDate = screen.getByLabelText('날짜').getAttribute('value') || '';
+
+    const monthView = screen.getByTestId('month-view');
+    const dateCell = within(monthView).getByText('16').closest('td')!;
+    await user.click(dateCell);
+
+    expect(
+      screen.getByText('편집 중인 일정이 있습니다. 편집을 취소하고 새 일정을 생성하시겠습니까?')
+    ).toBeInTheDocument();
+
+    const keepButton = screen.getByText('편집 유지');
+    await user.click(keepButton);
+
+    expect(screen.getAllByText('일정 수정')[0]).toBeInTheDocument();
+    expect(screen.getByLabelText('제목')).toHaveValue(originalTitle);
+    expect(screen.getByLabelText('날짜')).toHaveValue(originalDate);
+    expect(screen.queryByText('편집 중인 일정이 있습니다')).not.toBeInTheDocument();
+  });
 });
