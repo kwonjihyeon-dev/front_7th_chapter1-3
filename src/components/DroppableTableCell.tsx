@@ -2,6 +2,8 @@ import { useDroppable } from '@dnd-kit/core';
 import { TableCell, Typography } from '@mui/material';
 import { ReactNode } from 'react';
 
+import { Event } from '../types';
+
 interface DroppableTableCellProps {
   id: string;
   dateString: string;
@@ -9,7 +11,7 @@ interface DroppableTableCellProps {
   holiday?: string;
   children: ReactNode;
   onClick: () => void;
-  dayEvents: any[];
+  dayEvents: Event[];
   view: 'week' | 'month';
 }
 

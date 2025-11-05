@@ -1,5 +1,20 @@
-import { Event } from '../types';
+import { Event, RepeatType } from '../types';
 import { getWeekDates, isDateInRange } from './dateUtils';
+
+export function getRepeatTypeLabel(type: RepeatType): string {
+  switch (type) {
+    case 'daily':
+      return '?';
+    case 'weekly':
+      return '?';
+    case 'monthly':
+      return '?';
+    case 'yearly':
+      return '?';
+    default:
+      return '';
+  }
+}
 
 function filterEventsByDateRange(events: Event[], start: Date, end: Date): Event[] {
   return events.filter((event) => {

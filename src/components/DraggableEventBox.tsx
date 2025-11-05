@@ -2,19 +2,15 @@ import { useDraggable } from '@dnd-kit/core';
 import { Notifications, Repeat } from '@mui/icons-material';
 import { Box, Stack, Tooltip, Typography } from '@mui/material';
 
-import { Event, RepeatType } from '../types';
+import { Event } from '../types';
+import { getRepeatTypeLabel } from '../utils/eventUtils';
 
 interface DraggableEventBoxProps {
   event: Event;
   isNotified: boolean;
-  getRepeatTypeLabel: (type: RepeatType) => string;
 }
 
-export const DraggableEventBox = ({
-  event,
-  isNotified,
-  getRepeatTypeLabel,
-}: DraggableEventBoxProps) => {
+export const DraggableEventBox = ({ event, isNotified }: DraggableEventBoxProps) => {
   const { attributes, listeners, setNodeRef } = useDraggable({
     id: event.id,
     data: {

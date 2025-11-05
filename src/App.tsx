@@ -58,6 +58,7 @@ import {
   getWeeksAtMonth,
 } from './utils/dateUtils.ts';
 import { findOverlappingEvents } from './utils/eventOverlap.ts';
+import { getRepeatTypeLabel } from './utils/eventUtils.ts';
 import { getTimeErrorMessage } from './utils/timeValidation.ts';
 
 const categories = ['업무', '개인', '가족', '기타'];
@@ -71,21 +72,6 @@ const notificationOptions = [
   { value: 120, label: '2시간 전' },
   { value: 1440, label: '1일 전' },
 ];
-
-const getRepeatTypeLabel = (type: RepeatType): string => {
-  switch (type) {
-    case 'daily':
-      return '일';
-    case 'weekly':
-      return '주';
-    case 'monthly':
-      return '월';
-    case 'yearly':
-      return '년';
-    default:
-      return '';
-  }
-};
 
 function App() {
   const {
@@ -203,7 +189,7 @@ function App() {
     }
   };
 
-  const handleDateCellClick = (clickedDate: string, day: number | null, dateObj?: Date) => {
+  const handleDateCellClick = (clickedDate: string, dateObj?: Date) => {
     // clickedDate가 빈 문자열이면 무시
     if (!clickedDate) {
       return;
@@ -452,7 +438,7 @@ function App() {
                       id={`droppable-week-${dateString}`}
                       dateString={dateString}
                       day={date.getDate()}
-                      onClick={() => handleDateCellClick(dateString, date.getDate(), date)}
+                      onClick={() => handleDateCellClick(dateString, date)}
                       dayEvents={dayEvents}
                       view="week"
                     >
@@ -468,7 +454,6 @@ function App() {
                               key={event.id}
                               event={event}
                               isNotified={isNotified}
-                              getRepeatTypeLabel={getRepeatTypeLabel}
                             />
                           );
                         })}
@@ -516,11 +501,7 @@ function App() {
                         dateString={dateString}
                         day={day}
                         holiday={holiday}
-                        onClick={() => {
-                          if (day && dateString) {
-                            handleDateCellClick(dateString, day);
-                          }
-                        }}
+                        onClick={() => handleDateCellClick(dateString)}
                         dayEvents={dayEvents}
                         view="month"
                       >
@@ -533,7 +514,6 @@ function App() {
                                 key={event.id}
                                 event={event}
                                 isNotified={isNotified}
-                                getRepeatTypeLabel={getRepeatTypeLabel}
                               />
                             );
                           })}
