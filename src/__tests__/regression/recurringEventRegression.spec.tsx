@@ -8,6 +8,7 @@ import { ReactElement } from 'react';
 
 import { setupMockHandlerListCreation } from '../../__mocks__/handlersUtils';
 import App from '../../App';
+import { SUCCESS_MESSAGES } from '../../messages';
 import { server } from '../../setupTests';
 
 const theme = createTheme();
@@ -75,7 +76,7 @@ describe('반복 일정 회귀 테스트', () => {
       );
 
       const { user } = setup(<App />);
-      await screen.findByText('일정 로딩 완료!');
+      await screen.findByText(SUCCESS_MESSAGES.EVENTS_LOADED);
 
       const searchInput = screen.getByPlaceholderText('검색어를 입력하세요');
       await user.type(searchInput, '반복 회의');
@@ -122,7 +123,7 @@ describe('반복 일정 회귀 테스트', () => {
       );
 
       const { user } = setup(<App />);
-      await screen.findByText('일정 로딩 완료!');
+      await screen.findByText(SUCCESS_MESSAGES.EVENTS_LOADED);
 
       // 주별 뷰로 변경
       await user.click(within(screen.getByLabelText('뷰 타입 선택')).getByRole('combobox'));
@@ -167,7 +168,7 @@ describe('반복 일정 회귀 테스트', () => {
       );
 
       setup(<App />);
-      await screen.findByText('일정 로딩 완료!');
+      await screen.findByText(SUCCESS_MESSAGES.EVENTS_LOADED);
 
       const monthView = within(screen.getByTestId('month-view'));
       expect(monthView.getAllByText('이번달 반복 회의')).toHaveLength(2);
@@ -212,7 +213,7 @@ describe('반복 일정 회귀 테스트', () => {
       );
 
       setup(<App />);
-      await screen.findByText('일정 로딩 완료!');
+      await screen.findByText(SUCCESS_MESSAGES.EVENTS_LOADED);
 
       expect(screen.queryByText('10분 후 반복 회의 일정이 시작됩니다.')).not.toBeInTheDocument();
 
@@ -240,7 +241,7 @@ describe('반복 일정 회귀 테스트', () => {
       ]);
 
       const { user } = setup(<App />);
-      await screen.findByText('일정 로딩 완료!');
+      await screen.findByText(SUCCESS_MESSAGES.EVENTS_LOADED);
 
       // 겹치는 시간대에 반복 일정 생성
       await user.click(screen.getAllByText('일정 추가')[0]);

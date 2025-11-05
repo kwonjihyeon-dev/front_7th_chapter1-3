@@ -48,6 +48,7 @@ import { useEventOperations } from './hooks/useEventOperations.ts';
 import { useNotifications } from './hooks/useNotifications.ts';
 import { useRecurringEventOperations } from './hooks/useRecurringEventOperations.ts';
 import { useSearch } from './hooks/useSearch.ts';
+import { ERROR_MESSAGES, SUCCESS_MESSAGES } from './messages.ts';
 import { Event, EventForm, RepeatType } from './types.ts';
 import {
   formatDate,
@@ -107,10 +108,8 @@ function App() {
     editEvent,
   } = useEventForm();
 
-  const { events, saveEvent, deleteEvent, createRepeatEvent, fetchEvents } = useEventOperations(
-    Boolean(editingEvent),
-    () => setEditingEvent(null)
-  );
+  const { events, createEvent, updateEvent, deleteEvent, createRepeatEvent, fetchEvents } =
+    useEventOperations(() => setEditingEvent(null));
 
   const { handleRecurringEdit, handleRecurringDelete } = useRecurringEventOperations(
     events,
@@ -151,10 +150,10 @@ function App() {
       // 반복 일정 삭제 처리
       try {
         await handleRecurringDelete(pendingRecurringDelete, editSingleOnly);
-        enqueueSnackbar('일정이 삭제되었습니다', { variant: 'success' });
+        enqueueSnackbar(SUCCESS_MESSAGES.EVENT_DELETED, { variant: 'success' });
       } catch (error) {
         console.error(error);
-        enqueueSnackbar('일정 삭제 실패', { variant: 'error' });
+        enqueueSnackbar(ERROR_MESSAGES.DELETE_FAILED, { variant: 'error' });
       }
       setIsRecurringDialogOpen(false);
       setPendingRecurringDelete(null);
@@ -267,26 +266,8 @@ function App() {
       return false;
     }
 
-    // 드래그한 일정만 업데이트
-    try {
-      const response = await fetch(`/api/events/${updatedEvent.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updatedEvent),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to update event');
-      }
-
-      await fetchEvents();
-      enqueueSnackbar('일정이 수정되었습니다', { variant: 'success' });
-      return true;
-    } catch (error) {
-      console.error('Error updating event:', error);
-      enqueueSnackbar('일정 저장 실패', { variant: 'error' });
-      return false;
-    }
+    // 드래그한 일정만 업데이트 (순수 API 함수 사용)
+    return await updateEvent(updatedEvent);
   };
 
   const handleDragEnd = async (event: DragEndEvent) => {
@@ -336,12 +317,12 @@ function App() {
 
   const addOrUpdateEvent = async () => {
     if (!title || !date || !startTime || !endTime) {
-      enqueueSnackbar('필수 정보를 모두 입력해주세요.', { variant: 'error' });
+      enqueueSnackbar(ERROR_MESSAGES.REQUIRED_FIELDS_MISSING, { variant: 'error' });
       return;
     }
 
     if (startTimeError || endTimeError) {
-      enqueueSnackbar('시간 설정을 확인해주세요.', { variant: 'error' });
+      enqueueSnackbar(ERROR_MESSAGES.TIME_INVALID, { variant: 'error' });
       return;
     }
 
@@ -383,7 +364,7 @@ function App() {
         await handleRecurringEdit(eventData as Event, recurringEditMode);
         setRecurringEditMode(null);
       } else {
-        await saveEvent(eventData);
+        await updateEvent(eventData as Event);
       }
 
       resetForm();
@@ -404,7 +385,7 @@ function App() {
       return;
     }
 
-    await saveEvent(eventData);
+    await createEvent(eventData);
     resetForm();
   };
 
@@ -875,7 +856,7 @@ function App() {
                   setIsOverlapDialogOpen(false);
                   setIsDragOverlapDialog(false);
                   if (editingEvent) {
-                    saveEvent({
+                    updateEvent({
                       id: editingEvent.id,
                       title,
                       date,

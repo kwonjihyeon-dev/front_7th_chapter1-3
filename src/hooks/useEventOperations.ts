@@ -1,31 +1,18 @@
 import { useSnackbar } from 'notistack';
 import { useEffect, useState } from 'react';
 
+import { ERROR_MESSAGES, SUCCESS_MESSAGES } from '../messages';
 import { Event, EventForm } from '../types';
+import { apiGet, apiPost, apiPut, apiDelete } from '../utils/api';
 import { generateRepeatEvents } from '../utils/generateRepeatEvents';
 
-// 에러 메시지 상수
-const ERROR_MESSAGES = {
-  FETCH_FAILED: '이벤트 로딩 실패',
-  SAVE_FAILED: '일정 저장 실패',
-  DELETE_FAILED: '일정 삭제 실패',
-} as const;
-
-// 성공 메시지 상수
-const SUCCESS_MESSAGES = {
-  EVENT_ADDED: '일정이 추가되었습니다',
-  EVENT_UPDATED: '일정이 수정되었습니다',
-  EVENT_DELETED: '일정이 삭제되었습니다',
-  EVENTS_LOADED: '일정 로딩 완료!',
-} as const;
-
-export const useEventOperations = (editing: boolean, onSave?: () => void) => {
+export const useEventOperations = (onSave?: () => void) => {
   const [events, setEvents] = useState<Event[]>([]);
   const { enqueueSnackbar } = useSnackbar();
 
   const fetchEvents = async () => {
     try {
-      const response = await fetch('/api/events');
+      const response = await apiGet('/api/events');
       if (!response.ok) {
         throw new Error('Failed to fetch events');
       }
@@ -37,51 +24,59 @@ export const useEventOperations = (editing: boolean, onSave?: () => void) => {
     }
   };
 
-  const saveEvent = async (eventData: Event | EventForm) => {
+  // 순수 API 함수: 이벤트 생성
+  const createEvent = async (eventData: EventForm): Promise<boolean> => {
     try {
-      let response;
-      if (editing) {
-        const editingEvent = {
-          ...eventData,
-          // ! TEST CASE
-          repeat: eventData.repeat ?? {
-            type: 'none',
-            interval: 0,
-            endDate: '',
-          },
-        };
-
-        response = await fetch(`/api/events/${(eventData as Event).id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(editingEvent),
-        });
-      } else {
-        response = await fetch('/api/events', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(eventData),
-        });
-      }
+      const response = await apiPost('/api/events', eventData);
 
       if (!response.ok) {
-        throw new Error('Failed to save event');
+        throw new Error('Failed to create event');
       }
 
       await fetchEvents();
       onSave?.();
-      enqueueSnackbar(editing ? SUCCESS_MESSAGES.EVENT_UPDATED : SUCCESS_MESSAGES.EVENT_ADDED, {
-        variant: 'success',
-      });
+      enqueueSnackbar(SUCCESS_MESSAGES.EVENT_ADDED, { variant: 'success' });
+      return true;
     } catch (error) {
-      console.error('Error saving event:', error);
+      console.error('Error creating event:', error);
       enqueueSnackbar(ERROR_MESSAGES.SAVE_FAILED, { variant: 'error' });
+      return false;
+    }
+  };
+
+  // 순수 API 함수: 이벤트 수정
+  const updateEvent = async (eventData: Event): Promise<boolean> => {
+    try {
+      const editingEvent = {
+        ...eventData,
+        // ! TEST CASE
+        repeat: eventData.repeat ?? {
+          type: 'none',
+          interval: 0,
+          endDate: '',
+        },
+      };
+
+      const response = await apiPut(`/api/events/${eventData.id}`, editingEvent);
+
+      if (!response.ok) {
+        throw new Error('Failed to update event');
+      }
+
+      await fetchEvents();
+      onSave?.();
+      enqueueSnackbar(SUCCESS_MESSAGES.EVENT_UPDATED, { variant: 'success' });
+      return true;
+    } catch (error) {
+      console.error('Error updating event:', error);
+      enqueueSnackbar(ERROR_MESSAGES.SAVE_FAILED, { variant: 'error' });
+      return false;
     }
   };
 
   const deleteEvent = async (id: string) => {
     try {
-      const response = await fetch(`/api/events/${id}`, { method: 'DELETE' });
+      const response = await apiDelete(`/api/events/${id}`);
 
       if (!response.ok) {
         throw new Error('Failed to delete event');
@@ -98,11 +93,7 @@ export const useEventOperations = (editing: boolean, onSave?: () => void) => {
   const createRepeatEvent = async (eventData: EventForm) => {
     try {
       const newEvents = generateRepeatEvents(eventData);
-      const response = await fetch('/api/events-list', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ events: newEvents }),
-      });
+      const response = await apiPost('/api/events-list', { events: newEvents });
 
       if (!response.ok) {
         throw new Error('Failed to save event');
@@ -127,5 +118,12 @@ export const useEventOperations = (editing: boolean, onSave?: () => void) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return { events, fetchEvents, saveEvent, deleteEvent, createRepeatEvent };
+  return {
+    events,
+    fetchEvents,
+    createEvent,
+    updateEvent,
+    deleteEvent,
+    createRepeatEvent,
+  };
 };

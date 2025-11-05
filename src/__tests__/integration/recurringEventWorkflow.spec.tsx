@@ -12,6 +12,7 @@ import {
   setupMockHandlerUpdating,
 } from '../../__mocks__/handlersUtils';
 import App from '../../App';
+import { SUCCESS_MESSAGES } from '../../messages';
 
 const theme = createTheme();
 
@@ -59,7 +60,7 @@ describe('반복 일정 워크플로우 통합 테스트', () => {
     ]);
 
     const { user } = setup(<App />);
-    await screen.findByText('일정 로딩 완료!');
+    await screen.findByText(SUCCESS_MESSAGES.EVENTS_LOADED);
 
     // 생성된 반복 일정 확인
     const eventList = within(screen.getByTestId('event-list'));
@@ -103,7 +104,7 @@ describe('반복 일정 워크플로우 통합 테스트', () => {
     ]);
 
     const { user } = setup(<App />);
-    await screen.findByText('일정 로딩 완료!');
+    await screen.findByText(SUCCESS_MESSAGES.EVENTS_LOADED);
 
     // 반복 일정이 생성되었는지 확인 (반복 아이콘이 있는지 확인)
     await screen.findByTestId('event-list');
@@ -160,7 +161,7 @@ describe('반복 일정 워크플로우 통합 테스트', () => {
     ]);
 
     const { user } = setup(<App />);
-    await screen.findByText('일정 로딩 완료!');
+    await screen.findByText(SUCCESS_MESSAGES.EVENTS_LOADED);
 
     // 첫 번째 반복 일정 편집
     const editButtons = await screen.findAllByLabelText('Edit event');
@@ -215,7 +216,7 @@ describe('반복 일정 워크플로우 통합 테스트', () => {
       ]);
 
       const { user } = setup(<App />);
-      await screen.findByText('일정 로딩 완료!');
+      await screen.findByText(SUCCESS_MESSAGES.EVENTS_LOADED);
 
       // 생성된 반복 일정 확인
       const eventList = within(screen.getByTestId('event-list'));
@@ -259,7 +260,7 @@ describe('반복 일정 워크플로우 통합 테스트', () => {
       ]);
 
       const { user } = setup(<App />);
-      await screen.findByText('일정 로딩 완료!');
+      await screen.findByText(SUCCESS_MESSAGES.EVENTS_LOADED);
 
       // 반복 일정이 생성되었는지 확인
       await screen.findByTestId('event-list');
@@ -276,7 +277,7 @@ describe('반복 일정 워크플로우 통합 테스트', () => {
       // "예" 버튼 선택 (단일 삭제)
       const yesButton = await screen.findByText('예');
       await user.click(yesButton);
-      await screen.findByText('일정이 삭제되었습니다');
+      await screen.findByText(SUCCESS_MESSAGES.EVENT_DELETED);
 
       const updatedEventList = within(screen.getByTestId('event-list'));
       const remainingEvents = updatedEventList.queryAllByText('매일 회의');

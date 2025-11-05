@@ -13,6 +13,7 @@ import {
   setupMockHandlerListCreation,
 } from '../__mocks__/handlersUtils';
 import App from '../App';
+import { SUCCESS_MESSAGES } from '../messages';
 import { server } from '../setupTests';
 import { Event, RepeatInfo } from '../types';
 
@@ -134,7 +135,7 @@ describe('일정 뷰', () => {
     await user.click(screen.getByRole('option', { name: 'week-option' }));
 
     // ! 일정 로딩 완료 후 테스트
-    await screen.findByText('일정 로딩 완료!');
+    await screen.findByText(SUCCESS_MESSAGES.EVENTS_LOADED);
 
     const eventList = within(screen.getByTestId('event-list'));
     expect(eventList.getByText('검색 결과가 없습니다.')).toBeInTheDocument();
@@ -167,7 +168,7 @@ describe('일정 뷰', () => {
     setup(<App />);
 
     // ! 일정 로딩 완료 후 테스트
-    await screen.findByText('일정 로딩 완료!');
+    await screen.findByText(SUCCESS_MESSAGES.EVENTS_LOADED);
 
     const eventList = within(screen.getByTestId('event-list'));
     expect(eventList.getByText('검색 결과가 없습니다.')).toBeInTheDocument();
@@ -342,7 +343,7 @@ it('notificationTime을 10으로 하면 지정 시간 10분 전 알람 텍스트
   setup(<App />);
 
   // ! 일정 로딩 완료 후 테스트
-  await screen.findByText('일정 로딩 완료!');
+  await screen.findByText(SUCCESS_MESSAGES.EVENTS_LOADED);
 
   expect(screen.queryByText('10분 후 기존 회의 일정이 시작됩니다.')).not.toBeInTheDocument();
 
@@ -515,7 +516,7 @@ describe('날짜 클릭으로 일정 생성 기능', () => {
   it('월 뷰에서 빈 날짜 셀을 클릭하면 날짜 필드가 자동 설정된다', async () => {
     const { user } = setup(<App />);
 
-    await screen.findByText('일정 로딩 완료!');
+    await screen.findByText(SUCCESS_MESSAGES.EVENTS_LOADED);
 
     const monthView = screen.getByTestId('month-view');
     const dateCell = within(monthView).getByText('15').closest('td')!;
@@ -529,7 +530,7 @@ describe('날짜 클릭으로 일정 생성 기능', () => {
   it('주 뷰에서 빈 날짜 셀을 클릭하면 날짜 필드가 자동 설정된다', async () => {
     const { user } = setup(<App />);
 
-    await screen.findByText('일정 로딩 완료!');
+    await screen.findByText(SUCCESS_MESSAGES.EVENTS_LOADED);
 
     await user.click(within(screen.getByLabelText('뷰 타입 선택')).getByRole('combobox'));
     await user.click(screen.getByRole('option', { name: 'week-option' }));
@@ -558,7 +559,7 @@ describe('날짜 클릭으로 일정 생성 기능', () => {
       category: '업무',
     });
 
-    await screen.findByText('일정 로딩 완료!');
+    await screen.findByText(SUCCESS_MESSAGES.EVENTS_LOADED);
 
     const monthView = screen.getByTestId('month-view');
     const dateCell = within(monthView).getByText('15').closest('td')!;
@@ -576,7 +577,7 @@ describe('날짜 클릭으로 일정 생성 기능', () => {
 
     const { user } = setup(<App />);
 
-    await screen.findByText('일정 로딩 완료!');
+    await screen.findByText(SUCCESS_MESSAGES.EVENTS_LOADED);
 
     const editButtons = await screen.findAllByLabelText('Edit event');
     await user.click(editButtons[0]);
@@ -605,7 +606,7 @@ describe('날짜 클릭으로 일정 생성 기능', () => {
 
     const { user } = setup(<App />);
 
-    await screen.findByText('일정 로딩 완료!');
+    await screen.findByText(SUCCESS_MESSAGES.EVENTS_LOADED);
 
     const editButtons = await screen.findAllByLabelText('Edit event');
     await user.click(editButtons[0]);

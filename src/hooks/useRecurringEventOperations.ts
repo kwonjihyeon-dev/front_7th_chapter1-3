@@ -1,6 +1,5 @@
-/* global RequestInit */
-
 import { Event } from '../types';
+import { apiPut, apiDelete } from '../utils/api';
 
 /**
  * API endpoints for recurring event operations
@@ -69,16 +68,20 @@ export const useRecurringEventOperations = (
   /**
    * Generic API request handler with error handling
    */
-  const makeApiRequest = async (url: string, method: string, body?: unknown): Promise<boolean> => {
+  const makeApiRequest = async (
+    url: string,
+    method: 'PUT' | 'DELETE',
+    body?: unknown
+  ): Promise<boolean> => {
     try {
-      const config: RequestInit = { method };
+      let response: Response;
 
-      if (body !== undefined) {
-        config.headers = { 'Content-Type': 'application/json' };
-        config.body = JSON.stringify(body);
+      if (method === 'PUT') {
+        response = await apiPut(url, body);
+      } else {
+        response = await apiDelete(url);
       }
 
-      const response = await fetch(url, config);
       return response.ok;
     } catch (error) {
       console.error(`API request failed: ${method} ${url}`, error);

@@ -7,8 +7,9 @@ import {
   setupMockHandlerUpdating,
 } from '../../__mocks__/handlersUtils.ts';
 import { useEventOperations } from '../../hooks/useEventOperations.ts';
+import { ERROR_MESSAGES } from '../../messages.ts';
 import { server } from '../../setupTests.ts';
-import { Event } from '../../types.ts';
+import { Event, EventForm } from '../../types.ts';
 
 const enqueueSnackbarFn = vi.fn();
 
@@ -23,7 +24,7 @@ vi.mock('notistack', async () => {
 });
 
 it('저장되어있는 초기 이벤트 데이터를 적절하게 불러온다', async () => {
-  const { result } = renderHook(() => useEventOperations(false));
+  const { result } = renderHook(() => useEventOperations());
 
   await act(() => Promise.resolve(null));
 
@@ -46,12 +47,11 @@ it('저장되어있는 초기 이벤트 데이터를 적절하게 불러온다',
 it('정의된 이벤트 정보를 기준으로 적절하게 저장이 된다', async () => {
   setupMockHandlerCreation(); // ? Med: 이걸 왜 써야하는지 물어보자
 
-  const { result } = renderHook(() => useEventOperations(false));
+  const { result } = renderHook(() => useEventOperations());
 
   await act(() => Promise.resolve(null));
 
-  const newEvent: Event = {
-    id: '1',
+  const newEvent: EventForm = {
     title: '새 회의',
     date: '2025-10-16',
     startTime: '11:00',
@@ -64,7 +64,7 @@ it('정의된 이벤트 정보를 기준으로 적절하게 저장이 된다', a
   };
 
   await act(async () => {
-    await result.current.saveEvent(newEvent);
+    await result.current.createEvent(newEvent);
   });
 
   expect(result.current.events).toEqual([{ ...newEvent, id: '1' }]);
@@ -73,7 +73,7 @@ it('정의된 이벤트 정보를 기준으로 적절하게 저장이 된다', a
 it("새로 정의된 'title', 'endTime' 기준으로 적절하게 일정이 업데이트 된다", async () => {
   setupMockHandlerUpdating();
 
-  const { result } = renderHook(() => useEventOperations(true));
+  const { result } = renderHook(() => useEventOperations());
 
   await act(() => Promise.resolve(null));
 
@@ -91,7 +91,7 @@ it("새로 정의된 'title', 'endTime' 기준으로 적절하게 일정이 업�
   };
 
   await act(async () => {
-    await result.current.saveEvent(updatedEvent);
+    await result.current.updateEvent(updatedEvent);
   });
 
   expect(result.current.events[0]).toEqual(updatedEvent);
@@ -100,7 +100,7 @@ it("새로 정의된 'title', 'endTime' 기준으로 적절하게 일정이 업�
 it('존재하는 이벤트 삭제 시 에러없이 아이템이 삭제된다.', async () => {
   setupMockHandlerDeletion();
 
-  const { result } = renderHook(() => useEventOperations(false));
+  const { result } = renderHook(() => useEventOperations());
 
   await act(async () => {
     await result.current.deleteEvent('1');
@@ -118,17 +118,19 @@ it("이벤트 로딩 실패 시 '이벤트 로딩 실패'라는 텍스트와 함
     })
   );
 
-  renderHook(() => useEventOperations(true));
+  renderHook(() => useEventOperations());
 
   await act(() => Promise.resolve(null));
 
-  expect(enqueueSnackbarFn).toHaveBeenCalledWith('이벤트 로딩 실패', { variant: 'error' });
+  expect(enqueueSnackbarFn).toHaveBeenCalledWith(ERROR_MESSAGES.FETCH_FAILED, {
+    variant: 'error',
+  });
 
   server.resetHandlers();
 });
 
 it("존재하지 않는 이벤트 수정 시 '일정 저장 실패'라는 토스트가 노출되며 에러 처리가 되어야 한다", async () => {
-  const { result } = renderHook(() => useEventOperations(true));
+  const { result } = renderHook(() => useEventOperations());
 
   await act(() => Promise.resolve(null));
 
@@ -146,10 +148,12 @@ it("존재하지 않는 이벤트 수정 시 '일정 저장 실패'라는 토스
   };
 
   await act(async () => {
-    await result.current.saveEvent(nonExistentEvent);
+    await result.current.updateEvent(nonExistentEvent);
   });
 
-  expect(enqueueSnackbarFn).toHaveBeenCalledWith('일정 저장 실패', { variant: 'error' });
+  expect(enqueueSnackbarFn).toHaveBeenCalledWith(ERROR_MESSAGES.SAVE_FAILED, {
+    variant: 'error',
+  });
 });
 
 it("네트워크 오류 시 '일정 삭제 실패'라는 텍스트가 노출되며 이벤트 삭제가 실패해야 한다", async () => {
@@ -159,7 +163,7 @@ it("네트워크 오류 시 '일정 삭제 실패'라는 텍스트가 노출되�
     })
   );
 
-  const { result } = renderHook(() => useEventOperations(false));
+  const { result } = renderHook(() => useEventOperations());
 
   await act(() => Promise.resolve(null));
 
@@ -167,7 +171,9 @@ it("네트워크 오류 시 '일정 삭제 실패'라는 텍스트가 노출되�
     await result.current.deleteEvent('1');
   });
 
-  expect(enqueueSnackbarFn).toHaveBeenCalledWith('일정 삭제 실패', { variant: 'error' });
+  expect(enqueueSnackbarFn).toHaveBeenCalledWith(ERROR_MESSAGES.DELETE_FAILED, {
+    variant: 'error',
+  });
 
   expect(result.current.events).toHaveLength(1);
 });
