@@ -10,3 +10,4 @@ node_modules
 /.allure/
 *storybook.log
 storybook-static
+.DS_Store

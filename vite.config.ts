@@ -23,11 +23,19 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: './src/setupTests.ts',
+    include: ['src/__tests__/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'],
     coverage: {
       reportsDirectory: './.coverage',
       reporter: ['lcov', 'json', 'json-summary'],
     },
     projects: [
+      // Unit and integration tests project
+      {
+        extends: true,
+        test: {
+          name: 'unit',
+        },
+      },
       // Storybook project for story tests
       {
         extends: true,
