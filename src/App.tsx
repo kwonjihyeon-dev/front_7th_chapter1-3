@@ -1,3 +1,4 @@
+import { DndContext, DragEndEvent } from '@dnd-kit/core';
 import {
   ChevronLeft,
   ChevronRight,
@@ -38,6 +39,8 @@ import {
 import { useSnackbar } from 'notistack';
 import { useState } from 'react';
 
+import { DraggableEventBox } from './components/DraggableEventBox.tsx';
+import { DroppableTableCell } from './components/DroppableTableCell.tsx';
 import RecurringEventDialog from './components/RecurringEventDialog.tsx';
 import { useCalendarView } from './hooks/useCalendarView.ts';
 import { useEventForm } from './hooks/useEventForm.ts';
@@ -68,28 +71,6 @@ const notificationOptions = [
   { value: 120, label: '2시간 전' },
   { value: 1440, label: '1일 전' },
 ];
-
-// 스타일 상수
-const eventBoxStyles = {
-  notified: {
-    backgroundColor: '#ffebee',
-    fontWeight: 'bold',
-    color: '#d32f2f',
-  },
-  normal: {
-    backgroundColor: '#f5f5f5',
-    fontWeight: 'normal',
-    color: 'inherit',
-  },
-  common: {
-    p: 0.5,
-    my: 0.5,
-    borderRadius: 1,
-    minHeight: '18px',
-    width: '100%',
-    overflow: 'hidden',
-  },
-};
 
 const getRepeatTypeLabel = (type: RepeatType): string => {
   switch (type) {
@@ -166,6 +147,10 @@ function App() {
   const [recurringDialogMode, setRecurringDialogMode] = useState<'edit' | 'delete'>('edit');
   const [isEditCancelDialogOpen, setIsEditCancelDialogOpen] = useState(false);
   const [pendingClickDate, setPendingClickDate] = useState<string | null>(null);
+  const [pendingDragDrop, setPendingDragDrop] = useState<{ event: Event; newDate: string } | null>(
+    null
+  );
+  const [isDragOverlapDialog, setIsDragOverlapDialog] = useState(false);
 
   const { enqueueSnackbar } = useSnackbar();
 
@@ -269,6 +254,100 @@ function App() {
     setPendingClickDate(null);
   };
 
+  // 드래그한 일정을 새 날짜로 이동하고 업데이트하는 공통 로직
+  const updateDraggedEvent = async (draggedEvent: Event, newDate: string): Promise<boolean> => {
+    // 같은 날짜로 드래그한 경우 변경 없음
+    if (draggedEvent.date === newDate) {
+      return false;
+    }
+
+    // 드래그한 일정을 새 날짜로 이동하고 단일 일정으로 변환 (나머지 반복 일정 인스턴스는 변경하지 않음)
+    const updatedEvent: Event = {
+      ...draggedEvent,
+      date: newDate,
+      repeat: {
+        type: 'none' as const,
+        interval: 0,
+        endDate: undefined,
+      },
+    };
+
+    // 겹침 검사
+    const overlapping = findOverlappingEvents(updatedEvent, events);
+    if (overlapping.length > 0) {
+      setOverlappingEvents(overlapping);
+      setIsDragOverlapDialog(true);
+      setIsOverlapDialogOpen(true);
+      return false;
+    }
+
+    // 드래그한 일정만 업데이트
+    try {
+      const response = await fetch(`/api/events/${updatedEvent.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedEvent),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update event');
+      }
+
+      await fetchEvents();
+      enqueueSnackbar('일정이 수정되었습니다', { variant: 'success' });
+      return true;
+    } catch (error) {
+      console.error('Error updating event:', error);
+      enqueueSnackbar('일정 저장 실패', { variant: 'error' });
+      return false;
+    }
+  };
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    // 드래그한 이벤트 찾기
+    const draggedEvent = events.find((e) => e.id === active.id);
+    if (!draggedEvent) {
+      return;
+    }
+
+    // 드롭 위치가 없거나 드롭 가능한 영역이 아닌 경우 (드롭 불가능한 영역)
+    if (!over || !over.data.current?.dateString) {
+      return;
+    }
+
+    const newDate = over.data.current.dateString as string;
+
+    // 편집 모드 중이고, 드래그한 이벤트가 편집 중인 이벤트가 아닌 경우
+    if (editingEvent && editingEvent.id !== draggedEvent.id) {
+      setPendingDragDrop({ event: draggedEvent, newDate });
+      setIsEditCancelDialogOpen(true);
+      return;
+    }
+
+    await updateDraggedEvent(draggedEvent, newDate);
+  };
+
+  const handleDragCancel = () => {
+    // 드래그 취소 처리 (필요시 추가 로직 구현)
+  };
+
+  const handleEditCancelConfirmForDrag = async () => {
+    // 편집 모드 취소 및 드래그 진행
+    setEditingEvent(null);
+    resetForm();
+    setIsEditCancelDialogOpen(false);
+    setPendingClickDate(null);
+
+    // 드래그 앤 드롭 처리
+    if (pendingDragDrop) {
+      const { event: draggedEvent, newDate } = pendingDragDrop;
+      await updateDraggedEvent(draggedEvent, newDate);
+      setPendingDragDrop(null);
+    }
+  };
+
   const addOrUpdateEvent = async () => {
     if (!title || !date || !startTime || !endTime) {
       enqueueSnackbar('필수 정보를 모두 입력해주세요.', { variant: 'error' });
@@ -368,66 +447,32 @@ function App() {
                   );
 
                   return (
-                    <TableCell
+                    <DroppableTableCell
                       key={date.toISOString()}
+                      id={`droppable-week-${dateString}`}
+                      dateString={dateString}
+                      day={date.getDate()}
                       onClick={() => handleDateCellClick(dateString, date.getDate(), date)}
-                      sx={{
-                        height: '120px',
-                        verticalAlign: 'top',
-                        width: '14.28%',
-                        padding: 1,
-                        border: '1px solid #e0e0e0',
-                        overflow: 'hidden',
-                        cursor: dayEvents.length === 0 ? 'pointer' : 'default',
-                      }}
+                      dayEvents={dayEvents}
+                      view="week"
                     >
-                      <Typography variant="body2" fontWeight="bold" sx={{ pointerEvents: 'none' }}>
-                        {date.getDate()}
-                      </Typography>
                       {filteredEvents
                         .filter(
                           (event) => new Date(event.date).toDateString() === date.toDateString()
                         )
                         .map((event) => {
                           const isNotified = notifiedEvents.includes(event.id);
-                          const isRepeating = event.repeat.type !== 'none';
 
                           return (
-                            <Box
+                            <DraggableEventBox
                               key={event.id}
-                              data-event
-                              onClick={(e) => e.stopPropagation()}
-                              sx={{
-                                ...eventBoxStyles.common,
-                                ...(isNotified ? eventBoxStyles.notified : eventBoxStyles.normal),
-                              }}
-                            >
-                              <Stack direction="row" spacing={1} alignItems="center">
-                                {isNotified && <Notifications fontSize="small" />}
-                                {/* ! TEST CASE */}
-                                {isRepeating && (
-                                  <Tooltip
-                                    title={`${event.repeat.interval}${getRepeatTypeLabel(
-                                      event.repeat.type
-                                    )}마다 반복${
-                                      event.repeat.endDate ? ` (종료: ${event.repeat.endDate})` : ''
-                                    }`}
-                                  >
-                                    <Repeat fontSize="small" />
-                                  </Tooltip>
-                                )}
-                                <Typography
-                                  variant="caption"
-                                  noWrap
-                                  sx={{ fontSize: '0.75rem', lineHeight: 1.2 }}
-                                >
-                                  {event.title}
-                                </Typography>
-                              </Stack>
-                            </Box>
+                              event={event}
+                              isNotified={isNotified}
+                              getRepeatTypeLabel={getRepeatTypeLabel}
+                            />
                           );
                         })}
-                    </TableCell>
+                    </DroppableTableCell>
                   );
                 })}
               </TableRow>
@@ -465,97 +510,34 @@ function App() {
                     const dayEvents = day ? getEventsForDay(filteredEvents, day) : [];
 
                     return (
-                      <TableCell
+                      <DroppableTableCell
                         key={dayIndex}
+                        id={`droppable-month-${dateString}`}
+                        dateString={dateString}
+                        day={day}
+                        holiday={holiday}
                         onClick={() => {
                           if (day && dateString) {
                             handleDateCellClick(dateString, day);
                           }
                         }}
-                        role="button"
-                        tabIndex={day && dateString && dayEvents.length === 0 ? 0 : -1}
-                        sx={{
-                          height: '120px',
-                          verticalAlign: 'top',
-                          width: '14.28%',
-                          padding: 1,
-                          border: '1px solid #e0e0e0',
-                          overflow: 'hidden',
-                          position: 'relative',
-                          cursor: day && dayEvents.length === 0 ? 'pointer' : 'default',
-                        }}
+                        dayEvents={dayEvents}
+                        view="month"
                       >
-                        {day && (
-                          <>
-                            <Typography
-                              variant="body2"
-                              fontWeight="bold"
-                              onClick={(e) => e.stopPropagation()}
-                              sx={{ pointerEvents: 'none' }}
-                            >
-                              {day}
-                            </Typography>
-                            {holiday && (
-                              <Typography
-                                variant="body2"
-                                color="error"
-                                onClick={(e) => e.stopPropagation()}
-                                sx={{ pointerEvents: 'none' }}
-                              >
-                                {holiday}
-                              </Typography>
-                            )}
-                            {getEventsForDay(filteredEvents, day).map((event) => {
-                              const isNotified = notifiedEvents.includes(event.id);
-                              const isRepeating = event.repeat.type !== 'none';
+                        {day &&
+                          getEventsForDay(filteredEvents, day).map((event) => {
+                            const isNotified = notifiedEvents.includes(event.id);
 
-                              return (
-                                <Box
-                                  key={event.id}
-                                  data-event
-                                  onClick={(e) => e.stopPropagation()}
-                                  sx={{
-                                    p: 0.5,
-                                    my: 0.5,
-                                    backgroundColor: isNotified ? '#ffebee' : '#f5f5f5',
-                                    borderRadius: 1,
-                                    fontWeight: isNotified ? 'bold' : 'normal',
-                                    color: isNotified ? '#d32f2f' : 'inherit',
-                                    minHeight: '18px',
-                                    width: '100%',
-                                    overflow: 'hidden',
-                                  }}
-                                >
-                                  <Stack direction="row" spacing={1} alignItems="center">
-                                    {isNotified && <Notifications fontSize="small" />}
-                                    {/* ! TEST CASE */}
-                                    {isRepeating && (
-                                      <Tooltip
-                                        title={`${event.repeat.interval}${getRepeatTypeLabel(
-                                          event.repeat.type
-                                        )}마다 반복${
-                                          event.repeat.endDate
-                                            ? ` (종료: ${event.repeat.endDate})`
-                                            : ''
-                                        }`}
-                                      >
-                                        <Repeat fontSize="small" />
-                                      </Tooltip>
-                                    )}
-                                    <Typography
-                                      variant="caption"
-                                      noWrap
-                                      sx={{ fontSize: '0.75rem', lineHeight: 1.2 }}
-                                    >
-                                      {event.title}
-                                    </Typography>
-                                  </Stack>
-                                </Box>
-                              );
-                            })}
-                          </>
-                        )}
-                      </TableCell>
+                            return (
+                              <DraggableEventBox
+                                key={event.id}
+                                event={event}
+                                isNotified={isNotified}
+                                getRepeatTypeLabel={getRepeatTypeLabel}
+                              />
+                            );
+                          })}
+                      </DroppableTableCell>
                     );
                   })}
                 </TableRow>
@@ -568,403 +550,432 @@ function App() {
   };
 
   return (
-    <Box sx={{ width: '100%', height: '100vh', margin: 'auto', p: 5 }}>
-      <Stack direction="row" spacing={6} sx={{ height: '100%' }}>
-        <Stack spacing={2} sx={{ width: '20%' }}>
-          <Typography variant="h4">{editingEvent ? '일정 수정' : '일정 추가'}</Typography>
+    <DndContext onDragEnd={handleDragEnd} onDragCancel={handleDragCancel}>
+      <Box sx={{ width: '100%', height: '100vh', margin: 'auto', p: 5 }}>
+        <Stack direction="row" spacing={6} sx={{ height: '100%' }}>
+          <Stack spacing={2} sx={{ width: '20%' }}>
+            <Typography variant="h4">{editingEvent ? '일정 수정' : '일정 추가'}</Typography>
 
-          <FormControl fullWidth>
-            <FormLabel htmlFor="title">제목</FormLabel>
-            <TextField
-              id="title"
-              size="small"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-            />
-          </FormControl>
-
-          <FormControl fullWidth>
-            <FormLabel htmlFor="date">날짜</FormLabel>
-            <TextField
-              id="date"
-              size="small"
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-            />
-          </FormControl>
-
-          <Stack direction="row" spacing={2}>
             <FormControl fullWidth>
-              <FormLabel htmlFor="start-time">시작 시간</FormLabel>
-              <Tooltip title={startTimeError || ''} open={!!startTimeError} placement="top">
-                <TextField
-                  id="start-time"
-                  size="small"
-                  type="time"
-                  value={startTime}
-                  onChange={handleStartTimeChange}
-                  onBlur={() => getTimeErrorMessage(startTime, endTime)}
-                  error={!!startTimeError}
-                />
-              </Tooltip>
-            </FormControl>
-            <FormControl fullWidth>
-              <FormLabel htmlFor="end-time">종료 시간</FormLabel>
-              <Tooltip title={endTimeError || ''} open={!!endTimeError} placement="top">
-                <TextField
-                  id="end-time"
-                  size="small"
-                  type="time"
-                  value={endTime}
-                  onChange={handleEndTimeChange}
-                  onBlur={() => getTimeErrorMessage(startTime, endTime)}
-                  error={!!endTimeError}
-                />
-              </Tooltip>
-            </FormControl>
-          </Stack>
-
-          <FormControl fullWidth>
-            <FormLabel htmlFor="description">설명</FormLabel>
-            <TextField
-              id="description"
-              size="small"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-            />
-          </FormControl>
-
-          <FormControl fullWidth>
-            <FormLabel htmlFor="location">위치</FormLabel>
-            <TextField
-              id="location"
-              size="small"
-              value={location}
-              onChange={(e) => setLocation(e.target.value)}
-            />
-          </FormControl>
-
-          <FormControl fullWidth>
-            <FormLabel id="category-label">카테고리</FormLabel>
-            <Select
-              id="category"
-              size="small"
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              aria-labelledby="category-label"
-              aria-label="카테고리"
-            >
-              {categories.map((cat) => (
-                <MenuItem key={cat} value={cat} aria-label={`${cat}-option`}>
-                  {cat}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-
-          {!editingEvent && (
-            <FormControl>
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={isRepeating}
-                    onChange={(e) => {
-                      const checked = e.target.checked;
-                      setIsRepeating(checked);
-                      if (checked) {
-                        setRepeatType('daily');
-                      } else {
-                        setRepeatType('none');
-                      }
-                    }}
-                  />
-                }
-                label="반복 일정"
+              <FormLabel htmlFor="title">제목</FormLabel>
+              <TextField
+                id="title"
+                size="small"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
               />
             </FormControl>
-          )}
 
-          {/* ! TEST CASE */}
-          {isRepeating && !editingEvent && (
-            <Stack spacing={2}>
+            <FormControl fullWidth>
+              <FormLabel htmlFor="date">날짜</FormLabel>
+              <TextField
+                id="date"
+                size="small"
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+              />
+            </FormControl>
+
+            <Stack direction="row" spacing={2}>
               <FormControl fullWidth>
-                <FormLabel>반복 유형</FormLabel>
-                <Select
-                  size="small"
-                  value={repeatType}
-                  aria-label="반복 유형"
-                  onChange={(e) => setRepeatType(e.target.value as RepeatType)}
-                >
-                  <MenuItem value="daily" aria-label="daily-option">
-                    매일
-                  </MenuItem>
-                  <MenuItem value="weekly" aria-label="weekly-option">
-                    매주
-                  </MenuItem>
-                  <MenuItem value="monthly" aria-label="monthly-option">
-                    매월
-                  </MenuItem>
-                  <MenuItem value="yearly" aria-label="yearly-option">
-                    매년
-                  </MenuItem>
-                </Select>
+                <FormLabel htmlFor="start-time">시작 시간</FormLabel>
+                <Tooltip title={startTimeError || ''} open={!!startTimeError} placement="top">
+                  <TextField
+                    id="start-time"
+                    size="small"
+                    type="time"
+                    value={startTime}
+                    onChange={handleStartTimeChange}
+                    onBlur={() => getTimeErrorMessage(startTime, endTime)}
+                    error={!!startTimeError}
+                  />
+                </Tooltip>
               </FormControl>
-              <Stack direction="row" spacing={2}>
-                <FormControl fullWidth>
-                  <FormLabel htmlFor="repeat-interval">반복 간격</FormLabel>
+              <FormControl fullWidth>
+                <FormLabel htmlFor="end-time">종료 시간</FormLabel>
+                <Tooltip title={endTimeError || ''} open={!!endTimeError} placement="top">
                   <TextField
-                    id="repeat-interval"
+                    id="end-time"
                     size="small"
-                    type="number"
-                    value={repeatInterval}
-                    onChange={(e) => setRepeatInterval(Number(e.target.value))}
-                    slotProps={{ htmlInput: { min: 1 } }}
+                    type="time"
+                    value={endTime}
+                    onChange={handleEndTimeChange}
+                    onBlur={() => getTimeErrorMessage(startTime, endTime)}
+                    error={!!endTimeError}
                   />
-                </FormControl>
-                <FormControl fullWidth>
-                  <FormLabel htmlFor="repeat-end-date">반복 종료일</FormLabel>
-                  <TextField
-                    id="repeat-end-date"
-                    size="small"
-                    type="date"
-                    value={repeatEndDate}
-                    onChange={(e) => setRepeatEndDate(e.target.value)}
-                  />
-                </FormControl>
-              </Stack>
+                </Tooltip>
+              </FormControl>
             </Stack>
-          )}
 
-          <FormControl fullWidth>
-            <FormLabel htmlFor="notification">알림 설정</FormLabel>
-            <Select
-              id="notification"
-              size="small"
-              value={notificationTime}
-              onChange={(e) => setNotificationTime(Number(e.target.value))}
+            <FormControl fullWidth>
+              <FormLabel htmlFor="description">설명</FormLabel>
+              <TextField
+                id="description"
+                size="small"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+              />
+            </FormControl>
+
+            <FormControl fullWidth>
+              <FormLabel htmlFor="location">위치</FormLabel>
+              <TextField
+                id="location"
+                size="small"
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+              />
+            </FormControl>
+
+            <FormControl fullWidth>
+              <FormLabel id="category-label">카테고리</FormLabel>
+              <Select
+                id="category"
+                size="small"
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                aria-labelledby="category-label"
+                aria-label="카테고리"
+              >
+                {categories.map((cat) => (
+                  <MenuItem key={cat} value={cat} aria-label={`${cat}-option`}>
+                    {cat}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            {!editingEvent && (
+              <FormControl>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={isRepeating}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setIsRepeating(checked);
+                        if (checked) {
+                          setRepeatType('daily');
+                        } else {
+                          setRepeatType('none');
+                        }
+                      }}
+                    />
+                  }
+                  label="반복 일정"
+                />
+              </FormControl>
+            )}
+
+            {/* ! TEST CASE */}
+            {isRepeating && !editingEvent && (
+              <Stack spacing={2}>
+                <FormControl fullWidth>
+                  <FormLabel>반복 유형</FormLabel>
+                  <Select
+                    size="small"
+                    value={repeatType}
+                    aria-label="반복 유형"
+                    onChange={(e) => setRepeatType(e.target.value as RepeatType)}
+                  >
+                    <MenuItem value="daily" aria-label="daily-option">
+                      매일
+                    </MenuItem>
+                    <MenuItem value="weekly" aria-label="weekly-option">
+                      매주
+                    </MenuItem>
+                    <MenuItem value="monthly" aria-label="monthly-option">
+                      매월
+                    </MenuItem>
+                    <MenuItem value="yearly" aria-label="yearly-option">
+                      매년
+                    </MenuItem>
+                  </Select>
+                </FormControl>
+                <Stack direction="row" spacing={2}>
+                  <FormControl fullWidth>
+                    <FormLabel htmlFor="repeat-interval">반복 간격</FormLabel>
+                    <TextField
+                      id="repeat-interval"
+                      size="small"
+                      type="number"
+                      value={repeatInterval}
+                      onChange={(e) => setRepeatInterval(Number(e.target.value))}
+                      slotProps={{ htmlInput: { min: 1 } }}
+                    />
+                  </FormControl>
+                  <FormControl fullWidth>
+                    <FormLabel htmlFor="repeat-end-date">반복 종료일</FormLabel>
+                    <TextField
+                      id="repeat-end-date"
+                      size="small"
+                      type="date"
+                      value={repeatEndDate}
+                      onChange={(e) => setRepeatEndDate(e.target.value)}
+                    />
+                  </FormControl>
+                </Stack>
+              </Stack>
+            )}
+
+            <FormControl fullWidth>
+              <FormLabel htmlFor="notification">알림 설정</FormLabel>
+              <Select
+                id="notification"
+                size="small"
+                value={notificationTime}
+                onChange={(e) => setNotificationTime(Number(e.target.value))}
+              >
+                {notificationOptions.map((option) => (
+                  <MenuItem key={option.value} value={option.value}>
+                    {option.label}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            <Button
+              data-testid="event-submit-button"
+              onClick={addOrUpdateEvent}
+              variant="contained"
+              color="primary"
             >
-              {notificationOptions.map((option) => (
-                <MenuItem key={option.value} value={option.value}>
-                  {option.label}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-
-          <Button
-            data-testid="event-submit-button"
-            onClick={addOrUpdateEvent}
-            variant="contained"
-            color="primary"
-          >
-            {editingEvent ? '일정 수정' : '일정 추가'}
-          </Button>
-        </Stack>
-
-        <Stack flex={1} spacing={5}>
-          <Typography variant="h4">일정 보기</Typography>
-
-          <Stack direction="row" spacing={2} justifyContent="space-between" alignItems="center">
-            <IconButton aria-label="Previous" onClick={() => navigate('prev')}>
-              <ChevronLeft />
-            </IconButton>
-            <Select
-              size="small"
-              aria-label="뷰 타입 선택"
-              value={view}
-              onChange={(e) => setView(e.target.value as 'week' | 'month')}
-            >
-              <MenuItem value="week" aria-label="week-option">
-                Week
-              </MenuItem>
-              <MenuItem value="month" aria-label="month-option">
-                Month
-              </MenuItem>
-            </Select>
-            <IconButton aria-label="Next" onClick={() => navigate('next')}>
-              <ChevronRight />
-            </IconButton>
+              {editingEvent ? '일정 수정' : '일정 추가'}
+            </Button>
           </Stack>
 
-          {view === 'week' && renderWeekView()}
-          {view === 'month' && renderMonthView()}
-        </Stack>
+          <Stack flex={1} spacing={5}>
+            <Typography variant="h4">일정 보기</Typography>
 
-        <Stack
-          data-testid="event-list"
-          spacing={2}
-          sx={{ width: '30%', height: '100%', overflowY: 'auto' }}
-        >
-          <FormControl fullWidth>
-            <FormLabel htmlFor="search">일정 검색</FormLabel>
-            <TextField
-              id="search"
-              size="small"
-              placeholder="검색어를 입력하세요"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </FormControl>
+            <Stack direction="row" spacing={2} justifyContent="space-between" alignItems="center">
+              <IconButton aria-label="Previous" onClick={() => navigate('prev')}>
+                <ChevronLeft />
+              </IconButton>
+              <Select
+                size="small"
+                aria-label="뷰 타입 선택"
+                value={view}
+                onChange={(e) => setView(e.target.value as 'week' | 'month')}
+              >
+                <MenuItem value="week" aria-label="week-option">
+                  Week
+                </MenuItem>
+                <MenuItem value="month" aria-label="month-option">
+                  Month
+                </MenuItem>
+              </Select>
+              <IconButton aria-label="Next" onClick={() => navigate('next')}>
+                <ChevronRight />
+              </IconButton>
+            </Stack>
 
-          {filteredEvents.length === 0 ? (
-            <Typography>검색 결과가 없습니다.</Typography>
-          ) : (
-            filteredEvents.map((event) => (
-              <Box key={event.id} sx={{ border: 1, borderRadius: 2, p: 3, width: '100%' }}>
-                <Stack direction="row" justifyContent="space-between">
-                  <Stack>
-                    <Stack direction="row" spacing={1} alignItems="center">
-                      {notifiedEvents.includes(event.id) && <Notifications color="error" />}
-                      {event.repeat.type !== 'none' && (
-                        <Tooltip
-                          title={`${event.repeat.interval}${getRepeatTypeLabel(
-                            event.repeat.type
-                          )}마다 반복${
-                            event.repeat.endDate ? ` (종료: ${event.repeat.endDate})` : ''
-                          }`}
+            {view === 'week' && renderWeekView()}
+            {view === 'month' && renderMonthView()}
+          </Stack>
+
+          <Stack
+            data-testid="event-list"
+            spacing={2}
+            sx={{ width: '30%', height: '100%', overflowY: 'auto' }}
+          >
+            <FormControl fullWidth>
+              <FormLabel htmlFor="search">일정 검색</FormLabel>
+              <TextField
+                id="search"
+                size="small"
+                placeholder="검색어를 입력하세요"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </FormControl>
+
+            {filteredEvents.length === 0 ? (
+              <Typography>검색 결과가 없습니다.</Typography>
+            ) : (
+              filteredEvents.map((event) => (
+                <Box key={event.id} sx={{ border: 1, borderRadius: 2, p: 3, width: '100%' }}>
+                  <Stack direction="row" justifyContent="space-between">
+                    <Stack>
+                      <Stack direction="row" spacing={1} alignItems="center">
+                        {notifiedEvents.includes(event.id) && <Notifications color="error" />}
+                        {event.repeat.type !== 'none' && (
+                          <Tooltip
+                            title={`${event.repeat.interval}${getRepeatTypeLabel(
+                              event.repeat.type
+                            )}마다 반복${
+                              event.repeat.endDate ? ` (종료: ${event.repeat.endDate})` : ''
+                            }`}
+                          >
+                            <Repeat fontSize="small" />
+                          </Tooltip>
+                        )}
+                        <Typography
+                          fontWeight={notifiedEvents.includes(event.id) ? 'bold' : 'normal'}
+                          color={notifiedEvents.includes(event.id) ? 'error' : 'inherit'}
                         >
-                          <Repeat fontSize="small" />
-                        </Tooltip>
+                          {event.title}
+                        </Typography>
+                      </Stack>
+                      <Typography>{event.date}</Typography>
+                      <Typography>
+                        {event.startTime} - {event.endTime}
+                      </Typography>
+                      <Typography>{event.description}</Typography>
+                      <Typography>{event.location}</Typography>
+                      <Typography>카테고리: {event.category}</Typography>
+                      {event.repeat.type !== 'none' && (
+                        <Typography>
+                          반복: {event.repeat.interval}
+                          {event.repeat.type === 'daily' && '일'}
+                          {event.repeat.type === 'weekly' && '주'}
+                          {event.repeat.type === 'monthly' && '월'}
+                          {event.repeat.type === 'yearly' && '년'}
+                          마다
+                          {event.repeat.endDate && ` (종료: ${event.repeat.endDate})`}
+                        </Typography>
                       )}
-                      <Typography
-                        fontWeight={notifiedEvents.includes(event.id) ? 'bold' : 'normal'}
-                        color={notifiedEvents.includes(event.id) ? 'error' : 'inherit'}
-                      >
-                        {event.title}
+                      <Typography>
+                        알림:{' '}
+                        {
+                          notificationOptions.find(
+                            (option) => option.value === event.notificationTime
+                          )?.label
+                        }
                       </Typography>
                     </Stack>
-                    <Typography>{event.date}</Typography>
-                    <Typography>
-                      {event.startTime} - {event.endTime}
-                    </Typography>
-                    <Typography>{event.description}</Typography>
-                    <Typography>{event.location}</Typography>
-                    <Typography>카테고리: {event.category}</Typography>
-                    {event.repeat.type !== 'none' && (
-                      <Typography>
-                        반복: {event.repeat.interval}
-                        {event.repeat.type === 'daily' && '일'}
-                        {event.repeat.type === 'weekly' && '주'}
-                        {event.repeat.type === 'monthly' && '월'}
-                        {event.repeat.type === 'yearly' && '년'}
-                        마다
-                        {event.repeat.endDate && ` (종료: ${event.repeat.endDate})`}
-                      </Typography>
-                    )}
-                    <Typography>
-                      알림:{' '}
-                      {
-                        notificationOptions.find(
-                          (option) => option.value === event.notificationTime
-                        )?.label
-                      }
-                    </Typography>
+                    <Stack>
+                      <IconButton aria-label="Edit event" onClick={() => handleEditEvent(event)}>
+                        <Edit />
+                      </IconButton>
+                      <IconButton
+                        aria-label="Delete event"
+                        onClick={() => handleDeleteEvent(event)}
+                      >
+                        <Delete />
+                      </IconButton>
+                    </Stack>
                   </Stack>
-                  <Stack>
-                    <IconButton aria-label="Edit event" onClick={() => handleEditEvent(event)}>
-                      <Edit />
-                    </IconButton>
-                    <IconButton aria-label="Delete event" onClick={() => handleDeleteEvent(event)}>
-                      <Delete />
-                    </IconButton>
-                  </Stack>
-                </Stack>
-              </Box>
-            ))
-          )}
+                </Box>
+              ))
+            )}
+          </Stack>
         </Stack>
-      </Stack>
 
-      <Dialog open={isOverlapDialogOpen} onClose={() => setIsOverlapDialogOpen(false)}>
-        <DialogTitle>일정 겹침 경고</DialogTitle>
-        <DialogContent>
-          <DialogContentText>다음 일정과 겹칩니다:</DialogContentText>
-          {overlappingEvents.map((event) => (
-            <Typography key={event.id} sx={{ ml: 1, mb: 1 }}>
-              {event.title} ({event.date} {event.startTime}-{event.endTime})
-            </Typography>
-          ))}
-          <DialogContentText>계속 진행하시겠습니까?</DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setIsOverlapDialogOpen(false)}>취소</Button>
-          <Button
-            color="error"
-            onClick={() => {
-              setIsOverlapDialogOpen(false);
-              saveEvent({
-                id: editingEvent ? editingEvent.id : undefined,
-                title,
-                date,
-                startTime,
-                endTime,
-                description,
-                location,
-                category,
-                repeat: {
-                  type: isRepeating ? repeatType : 'none',
-                  interval: repeatInterval,
-                  endDate: repeatEndDate || undefined,
-                },
-                notificationTime,
-              });
-            }}
-          >
-            계속 진행
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      <RecurringEventDialog
-        open={isRecurringDialogOpen}
-        onClose={() => {
-          setIsRecurringDialogOpen(false);
-          setPendingRecurringEdit(null);
-          setPendingRecurringDelete(null);
-        }}
-        onConfirm={handleRecurringConfirm}
-        event={recurringDialogMode === 'edit' ? pendingRecurringEdit : pendingRecurringDelete}
-        mode={recurringDialogMode}
-      />
-
-      <Dialog open={isEditCancelDialogOpen} onClose={handleEditKeep}>
-        <DialogTitle>편집 모드 취소</DialogTitle>
-        <DialogContent>
-          <DialogContentText>
-            편집 중인 일정이 있습니다. 편집을 취소하고 새 일정을 생성하시겠습니까?
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleEditKeep}>편집 유지</Button>
-          <Button onClick={handleEditCancelConfirm} variant="contained" color="primary">
-            편집 취소
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {notifications.length > 0 && (
-        <Stack position="fixed" top={16} right={16} spacing={2} alignItems="flex-end">
-          {notifications.map((notification, index) => (
-            <Alert
-              key={index}
-              severity="info"
-              sx={{ width: 'auto' }}
-              action={
-                <IconButton
-                  size="small"
-                  onClick={() => setNotifications((prev) => prev.filter((_, i) => i !== index))}
-                >
-                  <Close />
-                </IconButton>
-              }
+        <Dialog
+          open={isOverlapDialogOpen}
+          onClose={() => {
+            setIsOverlapDialogOpen(false);
+            setIsDragOverlapDialog(false);
+          }}
+        >
+          <DialogTitle>일정 겹침 경고</DialogTitle>
+          <DialogContent>
+            <DialogContentText>다음 일정과 겹칩니다:</DialogContentText>
+            {overlappingEvents.map((event) => (
+              <Typography key={event.id} sx={{ ml: 1, mb: 1 }}>
+                {event.title} ({event.date} {event.startTime}-{event.endTime})
+              </Typography>
+            ))}
+            {!isDragOverlapDialog && <DialogContentText>계속 진행하시겠습니까?</DialogContentText>}
+          </DialogContent>
+          <DialogActions>
+            <Button
+              onClick={() => {
+                setIsOverlapDialogOpen(false);
+                setIsDragOverlapDialog(false);
+              }}
             >
-              <AlertTitle>{notification.message}</AlertTitle>
-            </Alert>
-          ))}
-        </Stack>
-      )}
-    </Box>
+              취소
+            </Button>
+            {!isDragOverlapDialog && (
+              <Button
+                color="error"
+                onClick={() => {
+                  setIsOverlapDialogOpen(false);
+                  setIsDragOverlapDialog(false);
+                  if (editingEvent) {
+                    saveEvent({
+                      id: editingEvent.id,
+                      title,
+                      date,
+                      startTime,
+                      endTime,
+                      description,
+                      location,
+                      category,
+                      repeat: {
+                        type: isRepeating ? repeatType : 'none',
+                        interval: repeatInterval,
+                        endDate: repeatEndDate || undefined,
+                      },
+                      notificationTime,
+                    });
+                  }
+                }}
+              >
+                계속 진행
+              </Button>
+            )}
+          </DialogActions>
+        </Dialog>
+
+        <RecurringEventDialog
+          open={isRecurringDialogOpen}
+          onClose={() => {
+            setIsRecurringDialogOpen(false);
+            setPendingRecurringEdit(null);
+            setPendingRecurringDelete(null);
+          }}
+          onConfirm={handleRecurringConfirm}
+          event={recurringDialogMode === 'edit' ? pendingRecurringEdit : pendingRecurringDelete}
+          mode={recurringDialogMode}
+        />
+
+        <Dialog open={isEditCancelDialogOpen} onClose={handleEditKeep}>
+          <DialogTitle>편집 모드 취소</DialogTitle>
+          <DialogContent>
+            <DialogContentText>
+              {pendingDragDrop
+                ? '편집 중인 일정이 있습니다. 편집을 취소하고 일정을 이동하시겠습니까?'
+                : '편집 중인 일정이 있습니다. 편집을 취소하고 새 일정을 생성하시겠습니까?'}
+            </DialogContentText>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={handleEditKeep}>편집 유지</Button>
+            <Button
+              onClick={pendingDragDrop ? handleEditCancelConfirmForDrag : handleEditCancelConfirm}
+              variant="contained"
+              color="primary"
+            >
+              편집 취소
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        {notifications.length > 0 && (
+          <Stack position="fixed" top={16} right={16} spacing={2} alignItems="flex-end">
+            {notifications.map((notification, index) => (
+              <Alert
+                key={index}
+                severity="info"
+                sx={{ width: 'auto' }}
+                action={
+                  <IconButton
+                    size="small"
+                    onClick={() => setNotifications((prev) => prev.filter((_, i) => i !== index))}
+                  >
+                    <Close />
+                  </IconButton>
+                }
+              >
+                <AlertTitle>{notification.message}</AlertTitle>
+              </Alert>
+            ))}
+          </Stack>
+        )}
+      </Box>
+    </DndContext>
   );
 }
 
