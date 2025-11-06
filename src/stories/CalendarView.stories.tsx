@@ -61,8 +61,8 @@ const meta: Meta<typeof CalendarView> = {
   },
   args: {
     onDateCellClick: fn(),
-    onDragEnd: fn(),
-    onDragCancel: fn(),
+    // onDragEnd: fn(),
+    // onDragCancel: fn(),
   },
 } satisfies Meta<typeof CalendarView>;
 
@@ -137,6 +137,49 @@ const mockRecurringEvents: Event[] = createRecurringEvents(
 const mockHolidays: Record<string, string> = {
   '2025-10-03': '개천절',
   '2025-10-09': '한글날',
+};
+
+const longTextEvents: Event[] = [
+  {
+    id: 'long-1',
+    title: '2025년 4분기 신규 프로젝트 킥오프를 위한 전사 오리엔테이션 및 이해관계자 조율 회의',
+    date: '2025-10-15',
+    startTime: '09:00',
+    endTime: '11:00',
+    description: '긴 제목 테스트',
+    location: '본사 대강당',
+    category: '업무',
+    repeat: { type: 'none', interval: 0 },
+    notificationTime: 10,
+  },
+  {
+    id: 'long-2',
+    title: '고객 성공 사례 공유 및 향후 전략 수립을 위한 부서 통합 워크숍',
+    date: '2025-10-16',
+    startTime: '13:00',
+    endTime: '17:00',
+    description: '긴 제목 테스트',
+    location: '세미나룸 B',
+    category: '업무',
+    repeat: { type: 'none', interval: 0 },
+    notificationTime: 60,
+  },
+  {
+    id: 'long-3',
+    title: '사용자 경험 개선을 위한 디자인 스프린트 결과 공유 및 후속 액션 플랜 작성',
+    date: '2025-10-17',
+    startTime: '10:00',
+    endTime: '12:00',
+    description: '긴 제목 테스트',
+    location: '회의실 A',
+    category: '업무',
+    repeat: { type: 'none', interval: 0 },
+    notificationTime: 30,
+  },
+];
+
+const longTextHolidays: Record<string, string> = {
+  '2025-10-17': '국제 협력 증진 및 지속 가능한 발전을 위한 세계 시민의 날',
 };
 
 // 월별 뷰 - 빈 상태
@@ -611,6 +654,42 @@ export const WeekViewMixedEvents: Story = {
     docs: {
       description: {
         story: '일반 일정은 아이콘 없이, 반복 일정은 Repeat 아이콘과 함께 표시됩니다.',
+      },
+    },
+  },
+};
+
+// 텍스트 길이 말줄임 처리 확인용 시나리오
+export const MonthViewWithEllipsis: Story = {
+  args: {
+    view: 'month',
+    currentDate: new Date('2025-10-15'),
+    events: longTextEvents,
+    notifiedEvents: ['long-1'],
+    holidays: longTextHolidays,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          '긴 제목의 일정과 긴 공휴일 텍스트가 캘린더 셀에서 말줄임 처리되어 표시되는지 확인합니다.',
+      },
+    },
+  },
+};
+
+export const WeekViewWithEllipsis: Story = {
+  args: {
+    view: 'week',
+    currentDate: new Date('2025-10-15'),
+    events: longTextEvents,
+    notifiedEvents: ['long-2'],
+    holidays: longTextHolidays,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story: '주간 뷰에서도 긴 텍스트가 말줄임 처리되는지 검증합니다.',
       },
     },
   },

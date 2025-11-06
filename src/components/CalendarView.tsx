@@ -29,7 +29,7 @@ interface CalendarViewProps {
   events: Event[];
   notifiedEvents?: string[];
   holidays?: Record<string, string>;
-  onDateCellClick?: (dateString: string, date?: Date) => void;
+  onDateCellClick?: (dateString: string) => void;
 }
 
 export const CalendarView = ({
