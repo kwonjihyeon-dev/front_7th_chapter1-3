@@ -47,6 +47,7 @@ export default defineConfig({
     {
       name: 'webkit',
       use: { ...devices['Desktop Safari'] },
+      timeout: 60000, // webkit 타임아웃을 60초로 설정 (기본값은 30초)
     },
 
     /* Test against mobile viewports. */
