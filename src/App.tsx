@@ -26,12 +26,6 @@ import {
   MenuItem,
   Select,
   Stack,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
   TextField,
   Tooltip,
   Typography,
@@ -39,8 +33,7 @@ import {
 import { useSnackbar } from 'notistack';
 import { useState } from 'react';
 
-import { DraggableEventBox } from './components/DraggableEventBox.tsx';
-import { DroppableTableCell } from './components/DroppableTableCell.tsx';
+import { CalendarView } from './components/CalendarView.tsx';
 import RecurringEventDialog from './components/RecurringEventDialog.tsx';
 import { useCalendarView } from './hooks/useCalendarView.ts';
 import { useEventForm } from './hooks/useEventForm.ts';
@@ -50,21 +43,11 @@ import { useRecurringEventOperations } from './hooks/useRecurringEventOperations
 import { useSearch } from './hooks/useSearch.ts';
 import { ERROR_MESSAGES, SUCCESS_MESSAGES } from './messages.ts';
 import { Event, EventForm, RepeatType } from './types.ts';
-import {
-  formatDate,
-  formatMonth,
-  formatWeek,
-  getEventsForDay,
-  getWeekDates,
-  getWeeksAtMonth,
-} from './utils/dateUtils.ts';
 import { findOverlappingEvents } from './utils/eventOverlap.ts';
 import { getRepeatTypeLabel } from './utils/eventUtils.ts';
 import { getTimeErrorMessage } from './utils/timeValidation.ts';
 
 const categories = ['업무', '개인', '가족', '기타'];
-
-const weekDays = ['일', '월', '화', '수', '목', '금', '토'];
 
 const notificationOptions = [
   { value: 1, label: '1분 전' },
@@ -389,127 +372,6 @@ function App() {
     resetForm();
   };
 
-  const renderWeekView = () => {
-    const weekDates = getWeekDates(currentDate);
-    return (
-      <Stack data-testid="week-view" spacing={4} sx={{ width: '100%' }}>
-        <Typography variant="h5">{formatWeek(currentDate)}</Typography>
-        <TableContainer>
-          <Table sx={{ tableLayout: 'fixed', width: '100%' }}>
-            <TableHead>
-              <TableRow>
-                {weekDays.map((day) => (
-                  <TableCell key={day} sx={{ width: '14.28%', padding: 1, textAlign: 'center' }}>
-                    {day}
-                  </TableCell>
-                ))}
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              <TableRow>
-                {weekDates.map((date) => {
-                  const dateString = formatDate(date, date.getDate());
-                  const dayEvents = filteredEvents.filter(
-                    (event) => new Date(event.date).toDateString() === date.toDateString()
-                  );
-
-                  return (
-                    <DroppableTableCell
-                      key={date.toISOString()}
-                      id={`droppable-week-${dateString}`}
-                      dateString={dateString}
-                      day={date.getDate()}
-                      onClick={() => handleDateCellClick(dateString, date)}
-                      dayEvents={dayEvents}
-                      view="week"
-                    >
-                      {filteredEvents
-                        .filter(
-                          (event) => new Date(event.date).toDateString() === date.toDateString()
-                        )
-                        .map((event) => {
-                          const isNotified = notifiedEvents.includes(event.id);
-
-                          return (
-                            <DraggableEventBox
-                              key={event.id}
-                              event={event}
-                              isNotified={isNotified}
-                            />
-                          );
-                        })}
-                    </DroppableTableCell>
-                  );
-                })}
-              </TableRow>
-            </TableBody>
-          </Table>
-        </TableContainer>
-      </Stack>
-    );
-  };
-
-  const renderMonthView = () => {
-    const weeks = getWeeksAtMonth(currentDate);
-
-    return (
-      <Stack data-testid="month-view" spacing={4} sx={{ width: '100%' }}>
-        <Typography variant="h5">{formatMonth(currentDate)}</Typography>
-        <TableContainer>
-          <Table sx={{ tableLayout: 'fixed', width: '100%' }}>
-            <TableHead>
-              <TableRow>
-                {weekDays.map((day) => (
-                  <TableCell key={day} sx={{ width: '14.28%', padding: 1, textAlign: 'center' }}>
-                    {day}
-                  </TableCell>
-                ))}
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {weeks.map((week, weekIndex) => (
-                <TableRow key={weekIndex}>
-                  {week.map((day, dayIndex) => {
-                    const dateString = day ? formatDate(currentDate, day) : '';
-                    const holiday = holidays[dateString];
-
-                    const dayEvents = day ? getEventsForDay(filteredEvents, day) : [];
-
-                    return (
-                      <DroppableTableCell
-                        key={dayIndex}
-                        id={`droppable-month-${dateString}`}
-                        dateString={dateString}
-                        day={day}
-                        holiday={holiday}
-                        onClick={() => handleDateCellClick(dateString)}
-                        dayEvents={dayEvents}
-                        view="month"
-                      >
-                        {day &&
-                          getEventsForDay(filteredEvents, day).map((event) => {
-                            const isNotified = notifiedEvents.includes(event.id);
-
-                            return (
-                              <DraggableEventBox
-                                key={event.id}
-                                event={event}
-                                isNotified={isNotified}
-                              />
-                            );
-                          })}
-                      </DroppableTableCell>
-                    );
-                  })}
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      </Stack>
-    );
-  };
-
   return (
     <DndContext onDragEnd={handleDragEnd} onDragCancel={handleDragCancel}>
       <Box sx={{ width: '100%', height: '100vh', margin: 'auto', p: 5 }}>
@@ -731,8 +593,14 @@ function App() {
               </IconButton>
             </Stack>
 
-            {view === 'week' && renderWeekView()}
-            {view === 'month' && renderMonthView()}
+            <CalendarView
+              view={view}
+              currentDate={currentDate}
+              events={filteredEvents}
+              notifiedEvents={notifiedEvents}
+              holidays={holidays}
+              onDateCellClick={handleDateCellClick}
+            />
           </Stack>
 
           <Stack
