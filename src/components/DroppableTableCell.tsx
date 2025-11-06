@@ -49,6 +49,9 @@ export const DroppableTableCell = ({
         overflow: 'hidden',
         position: 'relative',
         cursor: day && dayEvents.length === 0 ? 'pointer' : 'default',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 0.5,
       }}
     >
       {day && (
@@ -57,7 +60,14 @@ export const DroppableTableCell = ({
             variant="body2"
             fontWeight="bold"
             onClick={(e) => e.stopPropagation()}
-            sx={{ pointerEvents: 'none' }}
+            sx={{
+              pointerEvents: 'none',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              width: '100%',
+              lineHeight: 1.2,
+            }}
           >
             {day}
           </Typography>
@@ -66,7 +76,14 @@ export const DroppableTableCell = ({
               variant="body2"
               color="error"
               onClick={(e) => e.stopPropagation()}
-              sx={{ pointerEvents: 'none' }}
+              sx={{
+                pointerEvents: 'none',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                width: '100%',
+                lineHeight: 1.2,
+              }}
             >
               {holiday}
             </Typography>
