@@ -11,21 +11,33 @@ const __dirname = path.resolve();
 
 app.use(express.json());
 
-const dbName = process.env.TEST_ENV === 'e2e' ? 'e2e.json' : 'realEvents.json';
+// 워커별 데이터베이스 파일 지원
+// X-Test-DB-File 헤더 또는 TEST_DB_FILE 환경 변수로 데이터베이스 파일 선택
+const getDbName = (req) => {
+  // 요청 헤더에서 데이터베이스 파일명 가져오기 (워커별 독립성)
+  const headerDbName = req.headers['x-test-db-file'];
+  if (headerDbName) {
+    return headerDbName;
+  }
+  // 환경 변수에서 가져오기 (폴백)
+  return process.env.TEST_ENV === 'e2e' ? 'e2e.json' : 'realEvents.json';
+};
 
-const getEvents = async () => {
+const getEvents = async (dbName) => {
   const data = await readFile(`${__dirname}/src/__mocks__/response/${dbName}`, 'utf8');
 
   return JSON.parse(data);
 };
 
-app.get('/api/events', async (_, res) => {
-  const events = await getEvents();
+app.get('/api/events', async (req, res) => {
+  const dbName = getDbName(req);
+  const events = await getEvents(dbName);
   res.json(events);
 });
 
 app.post('/api/events', async (req, res) => {
-  const events = await getEvents();
+  const dbName = getDbName(req);
+  const events = await getEvents(dbName);
   const newEvent = { id: randomUUID(), ...req.body };
 
   fs.writeFileSync(
@@ -39,7 +51,8 @@ app.post('/api/events', async (req, res) => {
 });
 
 app.put('/api/events/:id', async (req, res) => {
-  const events = await getEvents();
+  const dbName = getDbName(req);
+  const events = await getEvents(dbName);
   const id = req.params.id;
   const eventIndex = events.events.findIndex((event) => event.id === id);
   if (eventIndex > -1) {
@@ -60,7 +73,8 @@ app.put('/api/events/:id', async (req, res) => {
 });
 
 app.delete('/api/events/:id', async (req, res) => {
-  const events = await getEvents();
+  const dbName = getDbName(req);
+  const events = await getEvents(dbName);
   const id = req.params.id;
 
   fs.writeFileSync(
@@ -74,7 +88,8 @@ app.delete('/api/events/:id', async (req, res) => {
 });
 
 app.post('/api/events-list', async (req, res) => {
-  const events = await getEvents();
+  const dbName = getDbName(req);
+  const events = await getEvents(dbName);
   const repeatId = randomUUID();
   const newEvents = req.body.events.map((event) => {
     const isRepeatEvent = event.repeat.type !== 'none';
@@ -99,7 +114,8 @@ app.post('/api/events-list', async (req, res) => {
 });
 
 app.put('/api/events-list', async (req, res) => {
-  const events = await getEvents();
+  const dbName = getDbName(req);
+  const events = await getEvents(dbName);
   let isUpdated = false;
 
   const newEvents = [...events.events];
@@ -126,7 +142,8 @@ app.put('/api/events-list', async (req, res) => {
 });
 
 app.delete('/api/events-list', async (req, res) => {
-  const events = await getEvents();
+  const dbName = getDbName(req);
+  const events = await getEvents(dbName);
   const newEvents = events.events.filter((event) => !req.body.eventIds.includes(event.id)); // ? ids를 전달하면 해당 아이디를 기준으로 events에서 제거
 
   fs.writeFileSync(
@@ -140,7 +157,8 @@ app.delete('/api/events-list', async (req, res) => {
 });
 
 app.put('/api/recurring-events/:repeatId', async (req, res) => {
-  const events = await getEvents();
+  const dbName = getDbName(req);
+  const events = await getEvents(dbName);
   const repeatId = req.params.repeatId;
   const updateData = req.body;
 
@@ -176,7 +194,8 @@ app.put('/api/recurring-events/:repeatId', async (req, res) => {
 });
 
 app.delete('/api/recurring-events/:repeatId', async (req, res) => {
-  const events = await getEvents();
+  const dbName = getDbName(req);
+  const events = await getEvents(dbName);
   const repeatId = req.params.repeatId;
 
   const remainingEvents = events.events.filter((event) => event.repeat.id !== repeatId);
@@ -194,9 +213,11 @@ app.delete('/api/recurring-events/:repeatId', async (req, res) => {
 });
 
 app.listen(port, () => {
-  if (!fs.existsSync(`${__dirname}/src/__mocks__/response/${dbName}`)) {
+  // 기본 데이터베이스 파일 초기화 (워커별 파일은 테스트에서 생성)
+  const defaultDbName = 'realEvents.json';
+  if (!fs.existsSync(`${__dirname}/src/__mocks__/response/${defaultDbName}`)) {
     fs.writeFileSync(
-      `${__dirname}/src/__mocks__/response/${dbName}`,
+      `${__dirname}/src/__mocks__/response/${defaultDbName}`,
       JSON.stringify({
         events: [],
       })

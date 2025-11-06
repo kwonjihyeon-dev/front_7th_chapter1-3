@@ -129,4 +129,11 @@ export default [
       },
     },
   },
+  // E2E test files configuration (Playwright)
+  {
+    files: ['e2e/**/*.{ts,tsx}'],
+    rules: {
+      'no-empty-pattern': 'warn',
+    },
+  },
 ];
