@@ -40,18 +40,18 @@ export const DraggableEventBox = ({ event, isNotified }: DraggableEventBoxProps)
         cursor: 'grab',
       }}
     >
-        <Stack direction="row" spacing={1} alignItems="center">
-          {isNotified && <Notifications fontSize="small" />}
+      <Stack direction="row" spacing={1} alignItems="center">
+        {isNotified && <Notifications fontSize="small" />}
         {isRepeating && (
           <Tooltip
             title={`${event.repeat.interval}${getRepeatTypeLabel(event.repeat.type)}마다 반복${
               event.repeat.endDate ? ` (종료: ${event.repeat.endDate})` : ''
             }`}
           >
-              <Repeat fontSize="small" />
+            <Repeat fontSize="small" />
           </Tooltip>
         )}
-          <Typography variant="caption" noWrap sx={{ fontSize: '0.75rem', lineHeight: 1.2 }}>
+        <Typography variant="caption" noWrap sx={{ fontSize: '0.75rem', lineHeight: 1.2 }}>
           {event.title}
         </Typography>
       </Stack>

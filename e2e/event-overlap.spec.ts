@@ -238,5 +238,4 @@ test.describe('일정 겹침 처리', () => {
     await expect(page.getByText('일정 겹침 경고')).not.toBeVisible();
     await expect(page.getByText('일정이 추가되었습니다')).toBeVisible();
   });
-
 });
