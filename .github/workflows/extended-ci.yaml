@@ -93,3 +93,4 @@ jobs:
           projectToken: ${{ secrets.CHROMATIC_PROJECT_TOKEN }}
           exitZeroOnChanges: true # ✅ 변경 허용 -> 개발중에만
           onlyChanged: true
+          interactive: true

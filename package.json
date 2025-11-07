@@ -20,7 +20,7 @@
     "lint": "pnpm lint:eslint && pnpm lint:tsc",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
-    "chromatic": "npx chromatic"
+    "chromatic": "npx chromatic --interactive"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
