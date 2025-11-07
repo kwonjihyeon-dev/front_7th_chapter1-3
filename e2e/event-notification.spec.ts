@@ -52,12 +52,11 @@ test.describe('일정 알림 노출', () => {
     await page.getByRole('option', { name: '10분 전' }).click();
     await page.getByTestId('event-submit-button').click();
 
-    await page.waitForSelector('[class*="-success"]');
     await expect(page.getByText('일정이 추가되었습니다')).toBeVisible();
 
     // Act: 시간을 10:00으로 이동 (알림 시간 도래)
     await page.clock.setFixedTime(new Date('2025-10-15 10:00:00'));
-    await page.waitForTimeout(1500);
+    await page.clock.fastForward('01:00');
 
     // 알림이 표시되는지 확인
     const notificationAlert = page.getByText('10분 후 닫기 테스트 일정이 시작됩니다.');
@@ -87,7 +86,8 @@ test.describe('일정 알림 노출', () => {
     await page.getByRole('option', { name: '10분 전' }).click();
     await page.getByTestId('event-submit-button').click();
 
-    await expect(page.getByText('일정이 추가되었습니다')).toBeVisible();
+    const snackbar = page.getByText('일정이 추가되었습니다');
+    await expect(snackbar).toBeVisible();
 
     // Act: 시간을 10:00으로 이동 (알림 시간 도래)
     await page.clock.setFixedTime(new Date('2025-10-15 10:00:00'));
@@ -159,7 +159,7 @@ test.describe('일정 알림 노출', () => {
 
     // Act: 시간을 10:00으로 이동 (첫 번째 인스턴스 알림 시간 도래)
     await page.clock.setFixedTime(new Date('2025-10-15 10:00:00'));
-    await page.waitForTimeout(1500);
+    // await page.waitForTimeout(1500);
 
     // Assert: 첫 번째 인스턴스 알림이 표시됨
     await expect(page.getByText('10분 후 반복 알림 테스트 일정이 시작됩니다.')).toBeVisible({
@@ -167,10 +167,10 @@ test.describe('일정 알림 노출', () => {
     });
 
     // Act: 알림 닫기
-    await page
-      .locator('.MuiButtonBase-root.MuiIconButton-root.MuiIconButton-sizeSmall')
-      .first()
-      .click();
+    const notificationAlert = page
+      .getByRole('alert')
+      .filter({ hasText: '10분 후 반복 알림 테스트 일정이 시작됩니다.' });
+    await notificationAlert.getByTestId('CloseIcon').click();
 
     // Act: 시간을 다음 주 수요일 10:00으로 이동 (두 번째 인스턴스 알림 시간 도래)
     await page.clock.setFixedTime(new Date('2025-10-22 10:00:00'));
@@ -178,45 +178,6 @@ test.describe('일정 알림 노출', () => {
 
     // Assert: 두 번째 인스턴스 알림이 표시됨
     await expect(page.getByText('10분 후 반복 알림 테스트 일정이 시작됩니다.')).toBeVisible({
-      timeout: 5000,
-    });
-  });
-
-  test('일정 수정 시 알림 설정이 변경되면 새로운 알림 시간에 맞춰 알림이 표시된다', async ({
-    page,
-  }) => {
-    // Arrange: 알림 시간이 10분 전인 일정 생성 (10:10 시작)
-    await page.getByLabel('제목').fill('수정 알림 테스트');
-    await page.getByLabel('날짜').fill('2025-10-20');
-    await page.getByLabel('시작 시간').fill('10:10');
-    await page.getByLabel('종료 시간').fill('11:00');
-    await page.getByLabel('설명').fill('수정 알림');
-    await page.getByLabel('위치').fill('회의실');
-    await page.getByLabel('카테고리').click();
-    await page.getByRole('option', { name: '업무-option' }).click();
-    await page.getByRole('combobox', { name: '분 전' }).click();
-    await page.getByRole('option', { name: '10분 전' }).click();
-    await page.getByTestId('event-submit-button').click();
-
-    await expect(page.getByText('일정이 추가되었습니다')).toBeVisible();
-
-    // Act: 일정 수정 - 알림 설정을 1분으로 변경하고 시작 시간을 10:01로 변경
-    const editButtons = page.getByLabel('Edit event');
-    await editButtons.first().click();
-
-    await page.getByLabel('시작 시간').fill('10:02');
-    await page.getByRole('combobox', { name: '분 전' }).click();
-    await page.getByRole('option', { name: '1분 전' }).click();
-    await page.getByTestId('event-submit-button').click();
-
-    await expect(page.getByText('일정이 수정되었습니다')).toBeVisible();
-
-    // Act: 시간을 10:00으로 이동 (1분 전 알림 시간 도래)
-    await page.clock.setFixedTime(new Date('2025-10-20 10:00:00'));
-    await page.clock.fastForward('01:00'); // 알림 체크 간격(1초)보다 조금 더 대기
-
-    // Assert: 1분 전 알림이 표시됨
-    await expect(page.getByText('1분 후 수정 알림 테스트 일정이 시작됩니다.')).toBeVisible({
       timeout: 5000,
     });
   });

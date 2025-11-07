@@ -62,9 +62,6 @@ test.describe('일정 관리 CRUD 기능', () => {
     const eventList = page.getByTestId('event-list');
     await expect(eventList.getByText('제목만 있는 일정')).not.toBeVisible();
   });
-
-  // READ 테스트
-
   // UPDATE 테스트
   test('일정을 수정하면 변경된 정보가 반영된다', async ({ page }) => {
     // Arrange: 일정 생성
@@ -103,10 +100,7 @@ test.describe('일정 관리 CRUD 기능', () => {
     await expect(eventList.getByText('수정 후 설명')).toBeVisible();
     await expect(eventList.getByText('수정 후 위치')).toBeVisible();
     await expect(eventList.getByText('14:00 - 15:00')).toBeVisible();
-
     // Assert: 이전 정보는 더 이상 표시되지 않음
-    // 브라우저별 업데이트 속도 차이를 고려하여 대기
-    await page.waitForTimeout(500);
     await expect(eventList.getByText('수정 전 제목', { exact: true })).not.toBeVisible({
       timeout: 10000,
     });
